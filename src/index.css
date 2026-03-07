@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@theme {
+  /* Modern Clean Palette (Zinc/Slate based) */
+  --color-background: #f9fafb; /* Light Gray/White */
+  --color-foreground: #18181b; /* Zinc 950 */
+  
+  --color-card: #ffffff;
+  --color-card-foreground: #18181b;
+  
+  --color-muted: #f4f4f5; /* Zinc 100 */
+  --color-muted-foreground: #71717a; /* Zinc 500 */
+  
+  --color-border: #e4e4e7; /* Zinc 200 */
+  --color-input: #e4e4e7;
+  --color-ring: #18181b; /* Focus ring usually matches brand or dark */
+
+  /* Semantic / Brand Colors - Unified & Professional */
+  --color-brand-primary: #4f46e5; /* Indigo 600 */
+  --color-brand-secondary: #0ea5e9; /* Sky 500 */
+  
+  /* Chart Colors - Cool, Professional Tones */
+  --color-chart-1: #4f46e5; /* Indigo 600 */
+  --color-chart-2: #0ea5e9; /* Sky 500 */
+  --color-chart-3: #10b981; /* Emerald 500 */
+  --color-chart-4: #8b5cf6; /* Violet 500 */
+  --color-chart-5: #f43f5e; /* Rose 500 */
+
+  /* Legacy Compatibility - Mapping old semantic names to new neutral/accent values 
+     to ensure code doesn't break, but style is overridden. */
+  --color-card-blue: #ffffff;
+  --color-card-blue-border: #e4e4e7;
+  --color-card-blue-icon: #3b82f6;
+
+  --color-card-amber: #ffffff;
+  --color-card-amber-border: #e4e4e7;
+  --color-card-amber-icon: #f59e0b;
+
+  --color-card-emerald: #ffffff;
+  --color-card-emerald-border: #e4e4e7;
+  --color-card-emerald-icon: #10b981;
+
+  --color-card-violet: #ffffff;
+  --color-card-violet-border: #e4e4e7;
+  --color-card-violet-icon: #8b5cf6;
+
+  --color-card-teal: #ffffff;
+  --color-card-teal-border: #e4e4e7;
+  --color-card-teal-icon: #14b8a6;
+}
+
+/* Dark Mode Overrides - Deep, Rich Dark Theme */
+.dark {
+  --color-background: #09090b; /* Zinc 950 */
+  --color-foreground: #fafafa; /* Zinc 50 */
+  
+  --color-card: #18181b; /* Zinc 900 */
+  --color-card-foreground: #fafafa;
+  
+  --color-muted: #27272a; /* Zinc 800 */
+  --color-muted-foreground: #a1a1aa; /* Zinc 400 */
+  
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-ring: #fafafa;
+
+  /* Adjust icon colors for dark mode visibility */
+  --color-card-blue: #18181b;
+  --color-card-blue-border: #27272a;
+  --color-card-blue-icon: #60a5fa;
+
+  --color-card-amber: #18181b;
+  --color-card-amber-border: #27272a;
+  --color-card-amber-icon: #fbbf24;
+
+  --color-card-emerald: #18181b;
+  --color-card-emerald-border: #27272a;
+  --color-card-emerald-icon: #34d399;
+
+  --color-card-violet: #18181b;
+  --color-card-violet-border: #27272a;
+  --color-card-violet-icon: #a78bfa;
+
+  --color-card-teal: #18181b;
+  --color-card-teal-border: #27272a;
+  --color-card-teal-icon: #2dd4bf;
+
+  --color-chart-1: #818cf8; /* Indigo 400 */
+  --color-chart-2: #38bdf8; /* Sky 400 */
+  --color-chart-3: #34d399; /* Emerald 400 */
+  --color-chart-4: #a78bfa; /* Violet 400 */
+  --color-chart-5: #fb7185; /* Rose 400 */
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Modern Card Style */
+.card {
+  background-color: var(--color-card);
+  color: var(--color-card-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem; /* More rounded */
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Remove colored backgrounds from semantic classes, keep borders subtle if needed */
+.stat-card-blue,
+.stat-card-amber,
+.stat-card-emerald,
+.stat-card-violet,
+.stat-card-teal {
+  background-color: var(--color-card);
+  border-color: var(--color-border);
+  border: 1px solid var(--color-border);
+}
