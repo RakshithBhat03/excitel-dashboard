@@ -1,0 +1,13 @@
+{
+  "name": "excitel-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "bun run src/index.js"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.3"
+  }
+}
