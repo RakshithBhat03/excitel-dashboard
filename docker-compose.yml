@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: excitel-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-excitel}
+      POSTGRES_USER: ${POSTGRES_USER:-excitel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-excitel} -d ${POSTGRES_DB:-excitel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend/Dockerfile
+    container_name: excitel-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-excitel}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-excitel}
+      EXCITEL_USERNAME: ${EXCITEL_USERNAME}
+      EXCITEL_PASSWORD: ${EXCITEL_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: excitel-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3080:80"
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: ../docker/worker/Dockerfile
+    container_name: excitel-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-excitel}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-excitel}
+      EXCITEL_USERNAME: ${EXCITEL_USERNAME}
+      EXCITEL_PASSWORD: ${EXCITEL_PASSWORD}
+      SYNC_CRON_SCHEDULE: ${SYNC_CRON_SCHEDULE:-0 0 * * *}
+      RUN_ON_STARTUP: ${RUN_ON_STARTUP:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
