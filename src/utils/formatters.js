@@ -1,8 +1,10 @@
 import {
+  addDays,
   differenceInMinutes,
   format,
   isValid,
   parseISO,
+  startOfDay,
 } from 'date-fns';
 
 export function formatBytes(mb, decimals = 2) {
@@ -114,33 +116,72 @@ export function processSessionsForChart(sessions) {
     }));
 }
 
+function splitSessionByDay(session) {
+  const startDate = parseISO(session.sessionStartDate);
+  const endDate = parseISO(session.sessionEndDate);
+  const usageTimeMinutes = Number(session.usageTime);
+  const usageVolumeMb = Number(session.usageVolume);
+
+  if (!isValid(startDate) || !isValid(endDate) || endDate <= startDate) {
+    return [];
+  }
+
+  if (!Number.isFinite(usageTimeMinutes) || !Number.isFinite(usageVolumeMb)) {
+    return [];
+  }
+
+  const totalDurationMs = endDate.getTime() - startDate.getTime();
+  let segmentStart = startDate;
+  const segments = [];
+
+  while (segmentStart < endDate) {
+    const nextDayStart = addDays(startOfDay(segmentStart), 1);
+    const segmentEnd = nextDayStart < endDate ? nextDayStart : endDate;
+    const segmentDurationMs = segmentEnd.getTime() - segmentStart.getTime();
+
+    if (segmentDurationMs <= 0) {
+      break;
+    }
+
+    const share = segmentDurationMs / totalDurationMs;
+
+    segments.push({
+      dateKey: format(segmentStart, 'yyyy-MM-dd'),
+      label: format(segmentStart, 'MMM dd'),
+      fullLabel: format(segmentStart, 'MMM dd, yyyy'),
+      usage: (usageVolumeMb / 1024) * share,
+      duration: (usageTimeMinutes / 60) * share,
+      sessionCount: 1,
+    });
+
+    segmentStart = segmentEnd;
+  }
+
+  return segments;
+}
+
 export function aggregateSessionsByDay(sessions) {
   if (!sessions || sessions.length === 0) return [];
 
   const dailyTotals = new Map();
 
   sessions.forEach((session) => {
-    const startDate = parseISO(session.sessionStartDate);
+    splitSessionByDay(session).forEach((segment) => {
+      const existingDay = dailyTotals.get(segment.dateKey) ?? {
+        dateKey: segment.dateKey,
+        label: segment.label,
+        fullLabel: segment.fullLabel,
+        usage: 0,
+        duration: 0,
+        sessionCount: 0,
+      };
 
-    if (!isValid(startDate)) {
-      return;
-    }
+      existingDay.usage += segment.usage;
+      existingDay.duration += segment.duration;
+      existingDay.sessionCount += segment.sessionCount;
 
-    const dateKey = format(startDate, 'yyyy-MM-dd');
-    const existingDay = dailyTotals.get(dateKey) ?? {
-      dateKey,
-      label: format(startDate, 'MMM dd'),
-      fullLabel: format(startDate, 'MMM dd, yyyy'),
-      usage: 0,
-      duration: 0,
-      sessionCount: 0,
-    };
-
-    existingDay.usage += Number(session.usageVolume) / 1024;
-    existingDay.duration += Number(session.usageTime) / 60;
-    existingDay.sessionCount += 1;
-
-    dailyTotals.set(dateKey, existingDay);
+      dailyTotals.set(segment.dateKey, existingDay);
+    });
   });
 
   return Array.from(dailyTotals.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
