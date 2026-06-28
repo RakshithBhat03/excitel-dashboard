@@ -1,8 +1,11 @@
-const BASE_URL = 'https://my.excitel.com/api/selfcare/public/index.php';
+const BASE_URL = 'https://selfcare.north.excitel.in/api/index_dev.php';
 
-let selfcareCookie = null;
+let selfcareCookie = process.env.SELFCARE_COOKIE || null;
 
 export async function login() {
+  if (process.env.SELFCARE_COOKIE) {
+    return;
+  }
   const username = process.env.EXCITEL_USERNAME;
   const password = process.env.EXCITEL_PASSWORD;
 
