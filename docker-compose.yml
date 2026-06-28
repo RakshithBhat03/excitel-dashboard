@@ -30,6 +30,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-excitel}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-excitel}
       EXCITEL_USERNAME: ${EXCITEL_USERNAME}
       EXCITEL_PASSWORD: ${EXCITEL_PASSWORD}
+      SELFCARE_COOKIE: ${SELFCARE_COOKIE:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,11 +72,17 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-excitel}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-excitel}
       EXCITEL_USERNAME: ${EXCITEL_USERNAME}
       EXCITEL_PASSWORD: ${EXCITEL_PASSWORD}
+      SELFCARE_COOKIE: ${SELFCARE_COOKIE:-}
       SYNC_CRON_SCHEDULE: ${SYNC_CRON_SCHEDULE:-0 0 * * *}
+      BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       RUN_ON_STARTUP: ${RUN_ON_STARTUP:-true}
+    volumes:
+      - backups:/app/backups
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  backups:
