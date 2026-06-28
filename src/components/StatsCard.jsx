@@ -54,10 +54,10 @@ export default function StatsCard({
       {/* Value */}
       <div className="mt-3 flex items-baseline gap-1.5">
         <span
-          className="font-display font-light tracking-tight text-4xl leading-none text-[var(--color-foreground)]"
-          style={{ fontVariationSettings: '"opsz" 144' }}
+          className="font-mono tracking-tight font-light text-4xl leading-none text-[var(--color-foreground)]"
+          style={{ wordSpacing: '-0.06em' }}
         >
-          {value}
+          <DecimalValue value={value} />
         </span>
         {unit && (
           <span className="text-sm font-mono text-[var(--color-muted-foreground)] uppercase tracking-wider">
@@ -86,6 +86,18 @@ function TrendBadge({ trend }) {
   if (trend > 0) return <TrendingUp className="w-3.5 h-3.5 text-[var(--color-success)]" />;
   if (trend < 0) return <TrendingDown className="w-3.5 h-3.5 text-[var(--color-danger)]" />;
   return <Minus className="w-3.5 h-3.5 text-[var(--color-muted-foreground)]" />;
+}
+
+function DecimalValue({ value }) {
+  const parts = String(value).split('.');
+  if (parts.length < 2) return value;
+  return (
+    <>
+      {parts[0]}
+      <span className="tracking-[-0.06em]">.</span>
+      {parts[1]}
+    </>
+  );
 }
 
 function Sparkline({ data, color }) {

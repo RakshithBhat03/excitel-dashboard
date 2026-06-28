@@ -1,5 +1,17 @@
 import { ArrowUpRight } from 'lucide-react';
 
+function TightDecimal({ str }) {
+  const dotIndex = str.indexOf('.');
+  if (dotIndex === -1) return str;
+  return (
+    <>
+      {str.slice(0, dotIndex)}
+      <span className="tracking-[-0.06em]">.</span>
+      {str.slice(dotIndex + 1)}
+    </>
+  );
+}
+
 /**
  * Marquee ticker showing key telemetry across the top, like a stock ribbon.
  */
@@ -22,7 +34,7 @@ export default function Ticker({ items = [] }) {
               {it.label}
             </span>
             <span className="text-[var(--color-foreground)] font-medium">
-              {it.value}
+              <TightDecimal str={it.value} />
             </span>
             {it.delta !== undefined && (
               <span className={
@@ -31,7 +43,7 @@ export default function Ticker({ items = [] }) {
                 : 'text-[var(--color-muted-foreground)]'
               }>
                 <ArrowUpRight className={`w-3 h-3 ${it.delta < 0 ? 'rotate-90' : ''}`} />
-                {Math.abs(it.delta).toFixed(1)}%
+                <TightDecimal str={`${Math.abs(it.delta).toFixed(1)}%`} />
               </span>
             )}
             <span className="text-[var(--color-border-strong)]">·</span>

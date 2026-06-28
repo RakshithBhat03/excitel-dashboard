@@ -32,7 +32,7 @@ export default function HealthRing({ uptimePercent = 0, sessionCount = 0, totalH
         </div>
       </div>
 
-      <div className="flex flex-col items-center mt-3">
+      <div className="relative flex items-center justify-center mt-3">
         <svg viewBox="0 0 160 160" width="180" height="180" className="my-2">
           {/* Track */}
           <circle
@@ -71,10 +71,13 @@ export default function HealthRing({ uptimePercent = 0, sessionCount = 0, totalH
             );
           })}
         </svg>
-        <div className="absolute top-[150px] left-1/2 -translate-x-1/2 text-center">
-          <p className="font-display font-light text-[44px] leading-none tracking-tight text-[var(--color-foreground)]"
-             style={{ fontVariationSettings: '"opsz" 144' }}>
-            {pct.toFixed(1)}<span className="text-2xl text-[var(--color-muted-foreground)] ml-0.5">%</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+          <p className="font-mono tracking-tight font-light text-[34px] leading-none text-[var(--color-foreground)]">
+            {(() => {
+              const [whole, frac] = pct.toFixed(1).split('.');
+              return <>{whole}<span className="tracking-[-0.06em]">.</span>{frac}</>;
+            })()}
+            <span className="text-2xl text-[var(--color-muted-foreground)] ml-0.5">%</span>
           </p>
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--color-muted-foreground)] mt-1">
             uptime
