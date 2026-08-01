@@ -1,295 +1,263 @@
-import { useState, useMemo, memo } from 'react';
-import {
-  ChevronUp,
-  ChevronDown,
-  Clock,
-  HardDrive,
-  Wifi,
-  AlertCircle,
-  CalendarDays,
-  Layers3,
-  Search,
-} from 'lucide-react';
-import { formatFullDate, formatBytes, formatDuration } from '../utils/formatters';
+import { memo, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Search } from 'lucide-react';
 import { cn } from '../lib/utils';
+import {
+  formatCompactMinutes,
+  formatGb,
+  formatGbText,
+  formatStamp,
+} from '../utils/formatters';
+import { Empty, Panel, PanelHead } from './ui';
 
-const SortIcon = memo(({ sortField, sortDirection, field }) => {
-  if (sortField !== field) return <span className="opacity-25">↕</span>;
-  return sortDirection === 'asc' ? (
-    <ChevronUp className="w-3.5 h-3.5 inline ml-1 text-[var(--color-brand-primary)]" />
-  ) : (
-    <ChevronDown className="w-3.5 h-3.5 inline ml-1 text-[var(--color-brand-primary)]" />
-  );
+const FAULTS = new Set(['Lost Carrier', 'NAS Error', 'NAS Reboot', 'Port Error']);
+
+const VIEWS = [
+  { key: 'days', label: 'Days' },
+  { key: 'sessions', label: 'Sessions' },
+];
+
+const SESSION_COLUMNS = [
+  { key: 'start', label: 'Started', sortable: true, align: 'left' },
+  { key: 'end', label: 'Ended', sortable: true, align: 'left' },
+  { key: 'minutes', label: 'Duration', sortable: true, align: 'right' },
+  { key: 'gb', label: 'Data', sortable: true, align: 'right' },
+  { key: 'share', label: '', sortable: false, align: 'left' },
+  { key: 'ip', label: 'Address', sortable: false, align: 'left' },
+  { key: 'cause', label: 'Ended by', sortable: false, align: 'right' },
+];
+
+const DAY_COLUMNS = [
+  { key: 'dateKey', label: 'Date', sortable: true, align: 'left' },
+  { key: 'usage', label: 'Data', sortable: true, align: 'right' },
+  { key: 'share', label: '', sortable: false, align: 'left' },
+  { key: 'connectedMinutes', label: 'Online', sortable: true, align: 'right' },
+  { key: 'sessionCount', label: 'Sessions', sortable: true, align: 'right' },
+];
+
+const Sort = memo(({ on, dir }) => {
+  if (!on) return <span className="ml-1 text-[var(--color-line-2)]">↕</span>;
+  const Icon = dir === 'asc' ? ArrowUp : ArrowDown;
+  return <Icon className="ml-1 inline w-3 h-3 text-[var(--color-s1)]" />;
 });
-SortIcon.displayName = 'SortIcon';
+Sort.displayName = 'Sort';
 
-function statusPillClass(cause) {
-  switch (cause) {
-    case 'User Request':    return 'pill pill-success';
-    case 'Session Timeout': return 'pill pill-info';
-    case 'Lost Carrier':    return 'pill pill-warn';
-    default:                return 'pill';
-  }
-}
-
-/**
- * Visual usage-bar showing this row's usage relative to the day's max.
- * Adds an at-a-glance heatmap feel without extra columns.
- */
-function UsageBar({ value, max, color = 'var(--color-chart-1)' }) {
-  const pct = Math.max(0.04, Math.min(1, value / (max || 1)));
+function Bar({ value, max, color = 'var(--color-s1)' }) {
   return (
-    <div className="flex items-center gap-2 min-w-[120px]">
-      <div className="flex-1 h-1.5 rounded-full bg-[var(--color-muted)] overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${pct * 100}%`, background: color }} />
-      </div>
-    </div>
+    <span className="block h-1.5 w-full min-w-[52px] overflow-hidden rounded-full bg-[var(--color-well)]">
+      <span
+        className="block h-full rounded-full"
+        style={{ width: `${Math.max(2, (value / (max || 1)) * 100)}%`, background: color }}
+      />
+    </span>
   );
 }
 
-export default function SessionsTable({ sessions, dailyUsageData }) {
-  const [activeTab, setActiveTab] = useState('daily');
-  const [sortField, setSortField] = useState('sessionStartDate');
-  const [sortDirection, setSortDirection] = useState('desc');
+function Value({ gb }) {
+  const { value, unit } = formatGb(gb);
+  return (
+    <>
+      {value}
+      <span className="ml-0.5 text-[10px] text-[var(--color-ink-3)]">{unit}</span>
+    </>
+  );
+}
+
+export default function SessionsTable({ rows, days }) {
+  const [view, setView] = useState('days');
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState({ field: 'start', dir: 'desc' });
+  const [daySort, setDaySort] = useState({ field: 'dateKey', dir: 'desc' });
 
-  const hasSessions = sessions && sessions.length > 0;
-  const hasDailyUsage = dailyUsageData && dailyUsageData.length > 0;
+  const sessionRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? rows.filter(
+          (s) =>
+            (s.ip || '').toLowerCase().includes(q) ||
+            s.cause.toLowerCase().includes(q) ||
+            formatStamp(s.start).toLowerCase().includes(q)
+        )
+      : rows;
 
-  const sortedSessions = useMemo(() => {
-    let rows = [...(sessions || [])];
-    if (query) {
-      const q = query.toLowerCase();
-      rows = rows.filter(s =>
-        (s.ipAddress || '').toLowerCase().includes(q) ||
-        (s.terminationCause || '').toLowerCase().includes(q) ||
-        (s.sessionStartDate || '').toLowerCase().includes(q)
-      );
-    }
-    rows.sort((a, b) => {
-      let aV = a[sortField], bV = b[sortField];
-      if (sortField === 'usageVolume' || sortField === 'usageTime') {
-        aV = parseFloat(aV); bV = parseFloat(bV);
-      }
-      return sortDirection === 'asc' ? (aV > bV ? 1 : -1) : (aV < bV ? 1 : -1);
+    const sign = sort.dir === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = a[sort.field];
+      const bv = b[sort.field];
+      if (av === bv) return 0;
+      return av > bv ? sign : -sign;
     });
-    return rows;
-  }, [sessions, sortField, sortDirection, query]);
+  }, [rows, query, sort]);
 
-  const sortedDailyUsage = useMemo(() => {
-    return [...(dailyUsageData || [])].sort((a, b) => b.dateKey.localeCompare(a.dateKey));
-  }, [dailyUsageData]);
+  const dayRows = useMemo(() => {
+    const sign = daySort.dir === 'asc' ? 1 : -1;
+    return [...days]
+      .filter((d) => d.sessionCount > 0)
+      .sort((a, b) => {
+        const av = a[daySort.field];
+        const bv = b[daySort.field];
+        if (av === bv) return 0;
+        return av > bv ? sign : -sign;
+      });
+  }, [days, daySort]);
 
-  const maxSessionVol = useMemo(
-    () => Math.max(1, ...sortedSessions.map(s => parseFloat(s.usageVolume) || 0)),
-    [sortedSessions]
+  const maxSessionGb = useMemo(
+    () => rows.reduce((m, s) => Math.max(m, s.gb), 0),
+    [rows]
   );
-  const maxDailyVol = useMemo(
-    () => Math.max(1, ...sortedDailyUsage.map(d => d.usage)),
-    [sortedDailyUsage]
-  );
+  const maxDayGb = useMemo(() => days.reduce((m, d) => Math.max(m, d.usage), 0), [days]);
 
-  if (!hasSessions && !hasDailyUsage) {
-    return (
-      <div className="card p-6 flex items-center justify-center h-48">
-        <p className="text-[var(--color-muted-foreground)]">No sessions found</p>
-      </div>
-    );
-  }
-
-  const handleSort = (field) => {
-    if (sortField === field) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    else { setSortField(field); setSortDirection('desc'); }
+  const toggle = (field, current, set) => {
+    if (current.field === field) {
+      set({ field, dir: current.dir === 'asc' ? 'desc' : 'asc' });
+    } else {
+      set({ field, dir: 'desc' });
+    }
   };
 
-  const tabLabel = activeTab === 'daily'
-    ? `${sortedDailyUsage.length} entries`
-    : `${sortedSessions.length} of ${sessions.length} sessions`;
+  const isDays = view === 'days';
+  const columns = isDays ? DAY_COLUMNS : SESSION_COLUMNS;
+  const activeSort = isDays ? daySort : sort;
 
   return (
-    <div className="card overflow-hidden">
-      {/* Ledger header */}
-      <div className="px-6 sm:px-7 pt-6 pb-4 border-b border-[var(--color-border)] flex flex-wrap gap-4 items-end justify-between">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] font-mono text-[var(--color-muted-foreground)]">
-            The ledger
-          </p>
-          <h3 className="font-display text-2xl font-light tracking-tight text-[var(--color-foreground)] mt-1">
-            <span className="italic">Session</span> history
-          </h3>
-          <p className="text-[11px] font-mono text-[var(--color-muted-foreground)] mt-1">{tabLabel}</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {activeTab === 'sessions' && (
-            <div className="flex items-center gap-2 px-3 h-9 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] w-56">
-              <Search className="w-3.5 h-3.5 text-[var(--color-muted-foreground)]" />
-              <input
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Filter IPs, status…"
-                className="bg-transparent outline-none text-xs placeholder:text-[var(--color-muted-foreground)] w-full"
-              />
-            </div>
-          )}
-          <div className="inline-flex items-center p-0.5 rounded-full bg-[var(--color-muted)] border border-[var(--color-border)] text-xs font-mono">
+    <Panel className="overflow-hidden">
+      <PanelHead
+        label="Records"
+        title={isDays ? 'Daily totals' : 'Session log'}
+        meta={
+          isDays
+            ? `${dayRows.length} days with activity`
+            : `${sessionRows.length} of ${rows.length} sessions`
+        }
+      >
+        {!isDays && (
+          <label className="hidden items-center gap-1.5 rounded-md border border-[var(--color-line)] bg-[var(--color-inset)] px-2.5 h-8 sm:flex">
+            <Search className="w-3.5 h-3.5 text-[var(--color-ink-3)]" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter address or cause"
+              className="w-44 bg-transparent text-[12px] outline-none placeholder:text-[var(--color-ink-3)]"
+              aria-label="Filter sessions"
+            />
+          </label>
+        )}
+        <div className="seg">
+          {VIEWS.map((v) => (
             <button
-              onClick={() => setActiveTab('daily')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all',
-                activeTab === 'daily'
-                  ? 'bg-[var(--color-card)] text-[var(--color-foreground)] shadow-[var(--shadow-paper)]'
-                  : 'text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]'
-              )}
+              key={v.key}
+              type="button"
+              onClick={() => setView(v.key)}
+              data-on={view === v.key}
+              aria-pressed={view === v.key}
             >
-              <CalendarDays className="w-3.5 h-3.5" /> Day-wise
+              {v.label}
             </button>
-            <button
-              onClick={() => setActiveTab('sessions')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all',
-                activeTab === 'sessions'
-                  ? 'bg-[var(--color-card)] text-[var(--color-foreground)] shadow-[var(--shadow-paper)]'
-                  : 'text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]'
-              )}
-            >
-              <Layers3 className="w-3.5 h-3.5" /> Sessions
-            </button>
-          </div>
+          ))}
         </div>
-      </div>
+      </PanelHead>
 
-      <div className="overflow-x-auto">
-        {activeTab === 'daily' ? (
-          sortedDailyUsage.length === 0 ? (
-            <div className="flex h-48 items-center justify-center px-6 py-4">
-              <p className="text-[var(--color-muted-foreground)]">No daily usage data available</p>
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--color-muted-foreground)]">
-                  <th className="px-6 sm:px-7 py-3 font-medium">
-                    <CalendarDays className="w-3.5 h-3.5 inline mr-1.5" /> Date
-                  </th>
-                  <th className="px-4 py-3 font-medium">
-                    <HardDrive className="w-3.5 h-3.5 inline mr-1.5" /> Volume
-                  </th>
-                  <th className="px-4 py-3 font-medium">Distribution</th>
-                  <th className="px-4 py-3 font-medium">
-                    <Clock className="w-3.5 h-3.5 inline mr-1.5" /> Online
-                  </th>
-                  <th className="px-6 sm:px-7 py-3 font-medium text-right">Sessions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedDailyUsage.map((day, i) => (
-                  <tr
-                    key={day.dateKey}
+      {(isDays ? dayRows.length : sessionRows.length) === 0 ? (
+        <Empty
+          message={
+            query ? 'No sessions match that filter.' : 'No records for this period yet.'
+          }
+        />
+      ) : (
+        <div className="max-h-[520px] overflow-auto">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 z-10 bg-[var(--color-panel)]">
+              <tr className="border-b border-[var(--color-line)]">
+                {columns.map((c) => (
+                  <th
+                    key={c.key}
+                    scope="col"
                     className={cn(
-                      'border-t border-[var(--color-border)] transition-colors hover:bg-[var(--color-muted)]/40',
-                      i === 0 && 'bg-[var(--color-brand-primary)]/5'
+                      'label whitespace-nowrap px-3 py-2 font-medium first:pl-4 last:pr-4 sm:first:pl-5 sm:last:pr-5',
+                      c.align === 'right' ? 'text-right' : 'text-left',
+                      c.sortable && 'cursor-pointer select-none hover:!text-[var(--color-ink)]'
                     )}
+                    onClick={
+                      c.sortable
+                        ? () => toggle(c.key, activeSort, isDays ? setDaySort : setSort)
+                        : undefined
+                    }
                   >
-                    <td className="px-6 sm:px-7 py-3.5">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm text-[var(--color-foreground)] font-medium">{day.fullLabel}</span>
-                        {i === 0 && <span className="text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--color-brand-primary)]">Latest</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 numeric text-sm font-medium text-[var(--color-foreground)]">
-                      {formatBytes(day.usage * 1024)}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <UsageBar value={day.usage} max={maxDailyVol} color="var(--color-chart-1)" />
-                    </td>
-                    <td className="px-4 py-3.5 numeric text-sm text-[var(--color-foreground)]">
-                      {formatDuration(day.duration * 60)}
-                    </td>
-                    <td className="px-6 sm:px-7 py-3.5 text-right numeric text-sm text-[var(--color-muted-foreground)]">
-                      {day.sessionCount}
-                    </td>
-                  </tr>
+                    {c.label}
+                    {c.sortable && (
+                      <Sort on={activeSort.field === c.key} dir={activeSort.dir} />
+                    )}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          )
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--color-muted-foreground)]">
-                <th
-                  className="px-6 sm:px-7 py-3 font-medium cursor-pointer select-none hover:text-[var(--color-foreground)]"
-                  onClick={() => handleSort('sessionStartDate')}
-                >
-                  <Clock className="w-3.5 h-3.5 inline mr-1.5" /> Started
-                  <SortIcon sortField={sortField} sortDirection={sortDirection} field="sessionStartDate" />
-                </th>
-                <th className="px-4 py-3 font-medium">Ended</th>
-                <th
-                  className="px-4 py-3 font-medium cursor-pointer select-none hover:text-[var(--color-foreground)]"
-                  onClick={() => handleSort('usageTime')}
-                >
-                  Duration
-                  <SortIcon sortField={sortField} sortDirection={sortDirection} field="usageTime" />
-                </th>
-                <th
-                  className="px-4 py-3 font-medium cursor-pointer select-none hover:text-[var(--color-foreground)]"
-                  onClick={() => handleSort('usageVolume')}
-                >
-                  <HardDrive className="w-3.5 h-3.5 inline mr-1.5" /> Volume
-                  <SortIcon sortField={sortField} sortDirection={sortDirection} field="usageVolume" />
-                </th>
-                <th className="px-4 py-3 font-medium">Share</th>
-                <th className="px-4 py-3 font-medium">
-                  <Wifi className="w-3.5 h-3.5 inline mr-1.5" /> IP
-                </th>
-                <th className="px-6 sm:px-7 py-3 font-medium text-right">
-                  <AlertCircle className="w-3.5 h-3.5 inline mr-1.5" /> Status
-                </th>
               </tr>
             </thead>
+
             <tbody>
-              {sortedSessions.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center px-6 py-8 text-[var(--color-muted-foreground)] text-sm">
-                    No matches.
-                  </td>
-                </tr>
-              ) : sortedSessions.map((session) => {
-                const vol = parseFloat(session.usageVolume) || 0;
-                return (
-                  <tr key={session.sessionId} className="border-t border-[var(--color-border)] transition-colors hover:bg-[var(--color-muted)]/40">
-                    <td className="px-6 sm:px-7 py-3.5 text-sm text-[var(--color-foreground)] whitespace-nowrap">
-                      {formatFullDate(session.sessionStartDate)}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-[var(--color-muted-foreground)] whitespace-nowrap">
-                      {formatFullDate(session.sessionEndDate)}
-                    </td>
-                    <td className="px-4 py-3.5 numeric text-sm text-[var(--color-foreground)]">
-                      {formatDuration(parseFloat(session.usageTime))}
-                    </td>
-                    <td className="px-4 py-3.5 numeric text-sm font-medium text-[var(--color-foreground)]">
-                      {formatBytes(vol)}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <UsageBar value={vol} max={maxSessionVol} />
-                    </td>
-                    <td className="px-4 py-3.5 font-mono text-xs text-[var(--color-muted-foreground)]">
-                      {session.ipAddress?.split(' ')[0] || '—'}
-                    </td>
-                    <td className="px-6 sm:px-7 py-3.5 text-right">
-                      <span className={statusPillClass(session.terminationCause)}>
-                        {session.terminationCause || 'Unknown'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+              {isDays
+                ? dayRows.map((d) => (
+                    <tr
+                      key={d.dateKey}
+                      className="border-b border-[var(--color-line)] last:border-0 transition-colors hover:bg-[var(--color-inset)]"
+                    >
+                      <td className="whitespace-nowrap px-3 py-2.5 pl-4 text-[13px] text-[var(--color-ink)] sm:pl-5">
+                        {d.fullLabel}
+                      </td>
+                      <td className="num px-3 py-2.5 text-right text-[12px] font-medium text-[var(--color-ink)]">
+                        <Value gb={d.usage} />
+                      </td>
+                      <td className="w-[22%] px-3 py-2.5">
+                        <Bar value={d.usage} max={maxDayGb} />
+                      </td>
+                      <td className="num px-3 py-2.5 text-right text-[12px] text-[var(--color-ink-2)]">
+                        {formatCompactMinutes(d.connectedMinutes)}
+                      </td>
+                      <td className="num px-3 py-2.5 pr-4 text-right text-[12px] text-[var(--color-ink-2)] sm:pr-5">
+                        {d.sessionCount}
+                      </td>
+                    </tr>
+                  ))
+                : sessionRows.map((s) => (
+                    <tr
+                      key={s.sessionId}
+                      className="border-b border-[var(--color-line)] last:border-0 transition-colors hover:bg-[var(--color-inset)]"
+                    >
+                      <td className="num whitespace-nowrap px-3 py-2.5 pl-4 text-[12px] text-[var(--color-ink)] sm:pl-5">
+                        {formatStamp(s.start)}
+                      </td>
+                      <td className="num whitespace-nowrap px-3 py-2.5 text-[12px] text-[var(--color-ink-2)]">
+                        {formatStamp(s.end)}
+                      </td>
+                      <td className="num px-3 py-2.5 text-right text-[12px] text-[var(--color-ink-2)]">
+                        {formatCompactMinutes(s.minutes)}
+                      </td>
+                      <td className="num px-3 py-2.5 text-right text-[12px] font-medium text-[var(--color-ink)]">
+                        <Value gb={s.gb} />
+                      </td>
+                      <td className="w-[16%] px-3 py-2.5">
+                        <Bar value={s.gb} max={maxSessionGb} />
+                      </td>
+                      <td className="num whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--color-ink-2)]">
+                        {s.ip || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 pr-4 text-right sm:pr-5">
+                        <span
+                          className={cn('chip', FAULTS.has(s.cause) ? 'chip-down' : 'chip-up')}
+                        >
+                          {s.cause}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
             </tbody>
           </table>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      <p className="label border-t border-[var(--color-line)] px-4 py-2.5 sm:px-5">
+        {isDays
+          ? `Totalling ${formatGbText(dayRows.reduce((a, d) => a + d.usage, 0))}`
+          : `Totalling ${formatGbText(sessionRows.reduce((a, s) => a + s.gb, 0))}`}{' '}
+        · times shown in IST
+      </p>
+    </Panel>
   );
 }
