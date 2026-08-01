@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "bun-types"]
+  },
+  "include": ["vite.config.ts", "eslint.config.ts", "scripts/**/*.ts"]
+}
