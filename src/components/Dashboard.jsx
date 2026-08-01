@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { TriangleAlert } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
@@ -16,8 +16,13 @@ import MetricTile from './MetricTile';
 import MonthlyHistory from './MonthlyHistory';
 import OutageLog from './OutageLog';
 import SessionsTable from './SessionsTable';
-import VolumeChart from './VolumeChart';
 import WeekdayProfile from './WeekdayProfile';
+
+// VolumeChart is the only panel that pulls in Recharts, which is most of the
+// bundle. Splitting it out keeps the charting library off the critical path;
+// the effect below starts fetching the chunk on mount so it downloads
+// alongside the session request rather than after it.
+const VolumeChart = lazy(() => import('./VolumeChart'));
 
 export default function Dashboard({
   rows,
@@ -39,6 +44,12 @@ export default function Dashboard({
   onMonthChange,
   onRefresh,
 }) {
+  // Warm the chart chunk while the session request is still in flight, so the
+  // panel is ready to render the moment the data lands.
+  useEffect(() => {
+    import('./VolumeChart');
+  }, []);
+
   const tiles = useMemo(() => {
     const spark = days.map((d) => d.usage);
     const total = formatGb(stats.totalGb);
@@ -152,7 +163,9 @@ export default function Dashboard({
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
               <div className="xl:col-span-2">
-                <VolumeChart days={days} stats={stats} />
+                <Suspense fallback={<Block className="h-[360px]" />}>
+                  <VolumeChart days={days} stats={stats} />
+                </Suspense>
               </div>
               <LinkQuality stats={stats} causes={causes} />
             </div>
