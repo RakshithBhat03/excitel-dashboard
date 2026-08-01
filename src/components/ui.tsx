@@ -1,10 +1,15 @@
 import { useId } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '../lib/utils';
 
 /* Shared shell pieces. Everything on the page is built from these so the
    panels, headings and tooltips stay identical across charts. */
 
-export function Panel({ className, children, ...rest }) {
+export function Panel({
+  className,
+  children,
+  ...rest
+}: HTMLAttributes<HTMLElement>): ReactNode {
   return (
     <section className={cn('panel flex flex-col', className)} {...rest}>
       {children}
@@ -12,7 +17,14 @@ export function Panel({ className, children, ...rest }) {
   );
 }
 
-export function PanelHead({ label, title, meta, children }) {
+export interface PanelHeadProps {
+  label?: string | undefined;
+  title: string;
+  meta?: string | undefined;
+  children?: ReactNode | undefined;
+}
+
+export function PanelHead({ label, title, meta, children }: PanelHeadProps): ReactNode {
   return (
     <header className="panel-head">
       <div className="min-w-0">
@@ -28,7 +40,7 @@ export function PanelHead({ label, title, meta, children }) {
 }
 
 /** One tooltip shell for every chart on the page. */
-export function TipShell({ title, children }) {
+export function TipShell({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
     <div className="rounded-lg border border-[var(--color-line-2)] bg-[var(--color-panel)] shadow-[var(--shadow-pop)] min-w-[168px] overflow-hidden">
       <p className="label px-2.5 pt-2 pb-1.5 !text-[var(--color-ink-2)]">{title}</p>
@@ -37,7 +49,15 @@ export function TipShell({ title, children }) {
   );
 }
 
-export function TipRow({ label, value, swatch }) {
+export function TipRow({
+  label,
+  value,
+  swatch,
+}: {
+  label: string;
+  value: ReactNode;
+  swatch?: string | undefined;
+}): ReactNode {
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-ink-2)]">
@@ -55,7 +75,13 @@ export function TipRow({ label, value, swatch }) {
   );
 }
 
-export function Empty({ message, className }) {
+export function Empty({
+  message,
+  className,
+}: {
+  message: string;
+  className?: string | undefined;
+}): ReactNode {
   return (
     <div className={cn('flex flex-1 items-center justify-center p-8 text-center', className)}>
       <p className="text-[13px] text-[var(--color-ink-2)]">{message}</p>
@@ -64,7 +90,15 @@ export function Empty({ message, className }) {
 }
 
 /** Legend swatch + name. Identity is never carried by colour alone. */
-export function LegendItem({ color, name, value }) {
+export function LegendItem({
+  color,
+  name,
+  value,
+}: {
+  color: string;
+  name: string;
+  value?: ReactNode | undefined;
+}): ReactNode {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span
@@ -78,23 +112,35 @@ export function LegendItem({ color, name, value }) {
   );
 }
 
-export function Sparkline({ data, color = 'var(--color-s1)', width = 76, height = 22 }) {
+export function Sparkline({
+  data,
+  color = 'var(--color-s1)',
+  width = 76,
+  height = 22,
+}: {
+  data?: number[] | undefined;
+  color?: string | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
+}): ReactNode {
   const reactId = useId();
   if (!data || data.length < 2) return null;
 
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
-  const pts = data.map((v, i) => [
-    (i / (data.length - 1)) * width,
-    height - 2 - ((v - min) / range) * (height - 4),
-  ]);
+  const points = data.map((value, index) => [
+    (index / (data.length - 1)) * width,
+    height - 2 - ((value - min) / range) * (height - 4),
+  ] as const);
 
-  const line = pts
-    .map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`)
+  const line = points
+    .map(([x, y], index) => `${index ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`)
     .join(' ');
   const gradId = `sp${reactId.replace(/:/g, '')}`;
-  const [lx, ly] = pts[pts.length - 1];
+  const lastPoint = points[points.length - 1];
+  if (!lastPoint) return null;
+  const [lastX, lastY] = lastPoint;
 
   return (
     <svg
@@ -119,7 +165,7 @@ export function Sparkline({ data, color = 'var(--color-s1)', width = 76, height 
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx={lx} cy={ly} r="2" fill={color} />
+      <circle cx={lastX} cy={lastY} r="2" fill={color} />
     </svg>
   );
 }

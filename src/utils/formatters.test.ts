@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { aggregateSessionsByDay } from './formatters';
+import type { DailyAggregate } from '../types/analytics';
 
-function sumDailyTotals(days) {
+function at<T>(items: T[], index: number): T {
+  const item = items[index];
+  if (item === undefined) throw new Error(`Expected item at index ${index}`);
+  return item;
+}
+
+function sumDailyTotals(days: DailyAggregate[]): { usage: number; duration: number } {
   return days.reduce(
     (acc, day) => ({
       usage: acc.usage + day.usage,
@@ -33,7 +40,7 @@ describe('aggregateSessionsByDay', () => {
     ]);
 
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({
+    expect(at(result, 0)).toMatchObject({
       dateKey: '2026-03-01',
       label: 'Mar 01',
       fullLabel: 'Mar 01, 2026',
@@ -54,22 +61,22 @@ describe('aggregateSessionsByDay', () => {
     ]);
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({
+    expect(at(result, 0)).toMatchObject({
       dateKey: '2026-03-01',
       label: 'Mar 01',
       fullLabel: 'Mar 01, 2026',
       sessionCount: 1,
     });
-    expect(result[1]).toMatchObject({
+    expect(at(result, 1)).toMatchObject({
       dateKey: '2026-03-02',
       label: 'Mar 02',
       fullLabel: 'Mar 02, 2026',
       sessionCount: 1,
     });
-    expect(result[0].usage).toBeCloseTo(1, 6);
-    expect(result[0].duration).toBeCloseTo(1, 6);
-    expect(result[1].usage).toBeCloseTo(1, 6);
-    expect(result[1].duration).toBeCloseTo(1, 6);
+    expect(at(result, 0).usage).toBeCloseTo(1, 6);
+    expect(at(result, 0).duration).toBeCloseTo(1, 6);
+    expect(at(result, 1).usage).toBeCloseTo(1, 6);
+    expect(at(result, 1).duration).toBeCloseTo(1, 6);
 
     const totals = sumDailyTotals(result);
     expect(totals.usage).toBeCloseTo(2, 6);
@@ -92,15 +99,15 @@ describe('aggregateSessionsByDay', () => {
       '2026-03-02',
       '2026-03-03',
     ]);
-    expect(result[0].usage).toBeCloseTo(4, 6);
-    expect(result[0].duration).toBeCloseTo(4, 6);
-    expect(result[1].usage).toBeCloseTo(24, 6);
-    expect(result[1].duration).toBeCloseTo(24, 6);
-    expect(result[2].usage).toBeCloseTo(8, 6);
-    expect(result[2].duration).toBeCloseTo(8, 6);
-    expect(result[0].sessionCount).toBe(1);
-    expect(result[1].sessionCount).toBe(1);
-    expect(result[2].sessionCount).toBe(1);
+    expect(at(result, 0).usage).toBeCloseTo(4, 6);
+    expect(at(result, 0).duration).toBeCloseTo(4, 6);
+    expect(at(result, 1).usage).toBeCloseTo(24, 6);
+    expect(at(result, 1).duration).toBeCloseTo(24, 6);
+    expect(at(result, 2).usage).toBeCloseTo(8, 6);
+    expect(at(result, 2).duration).toBeCloseTo(8, 6);
+    expect(at(result, 0).sessionCount).toBe(1);
+    expect(at(result, 1).sessionCount).toBe(1);
+    expect(at(result, 2).sessionCount).toBe(1);
 
     const totals = sumDailyTotals(result);
     expect(totals.usage).toBeCloseTo(36, 6);
@@ -135,9 +142,9 @@ describe('aggregateSessionsByDay', () => {
       '2026-03-02',
       '2026-03-03',
     ]);
-    expect(result[0]).toMatchObject({ usage: 0.5, duration: 0.5, sessionCount: 1 });
-    expect(result[1]).toMatchObject({ usage: 1.5, duration: 1.5, sessionCount: 2 });
-    expect(result[2]).toMatchObject({ usage: 1, duration: 2, sessionCount: 1 });
+    expect(at(result, 0)).toMatchObject({ usage: 0.5, duration: 0.5, sessionCount: 1 });
+    expect(at(result, 1)).toMatchObject({ usage: 1.5, duration: 1.5, sessionCount: 2 });
+    expect(at(result, 2)).toMatchObject({ usage: 1, duration: 2, sessionCount: 1 });
   });
 
   test('includes spillover days outside the selected month range', () => {
@@ -151,12 +158,12 @@ describe('aggregateSessionsByDay', () => {
     ]);
 
     expect(result).toHaveLength(2);
-    expect(result[0].dateKey).toBe('2026-03-31');
-    expect(result[1].dateKey).toBe('2026-04-01');
-    expect(result[0].usage).toBeCloseTo(2, 6);
-    expect(result[0].duration).toBeCloseTo(2, 6);
-    expect(result[1].usage).toBeCloseTo(2, 6);
-    expect(result[1].duration).toBeCloseTo(2, 6);
+    expect(at(result, 0).dateKey).toBe('2026-03-31');
+    expect(at(result, 1).dateKey).toBe('2026-04-01');
+    expect(at(result, 0).usage).toBeCloseTo(2, 6);
+    expect(at(result, 0).duration).toBeCloseTo(2, 6);
+    expect(at(result, 1).usage).toBeCloseTo(2, 6);
+    expect(at(result, 1).duration).toBeCloseTo(2, 6);
   });
 
   test('preserves single-day formatting for a single session', () => {

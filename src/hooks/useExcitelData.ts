@@ -1,5 +1,13 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  BillingMonthId,
+  RawExcitelSession,
+  SelectableMonth,
+  SelectableMonthId,
+} from '../../shared/contracts';
+import { getErrorMessage } from '../lib/errors';
 import { fetchUsageData, triggerSync } from '../services/api';
+import type { UseExcitelDataResult } from '../types/analytics';
 import {
   addressPool,
   buildDays,
@@ -12,18 +20,23 @@ import {
   weekdayProfile,
 } from '../utils/analytics';
 
-export function useExcitelData() {
-  const [rawSessions, setRawSessions] = useState([]);
-  const [months, setMonths] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(null);
-  const [archive, setArchive] = useState([]);
+function getCurrentMonthId(): BillingMonthId {
+  const now = new Date();
+  return `${now.getMonth() + 1}-${now.getFullYear()}`;
+}
+
+export function useExcitelData(): UseExcitelDataResult {
+  const [rawSessions, setRawSessions] = useState<RawExcitelSession[]>([]);
+  const [months, setMonths] = useState<SelectableMonth[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<SelectableMonthId | null>(null);
+  const [archive, setArchive] = useState<RawExcitelSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const hasFallenBack = useRef(false);
 
-  const fetchData = useCallback(async (monthId) => {
+  const fetchData = useCallback(async (monthId: SelectableMonthId): Promise<void> => {
     setLoading(true);
     setError(null);
 
@@ -40,12 +53,12 @@ export function useExcitelData() {
         const sessions = result.result.sessions || [];
         const monthList = result.result.months || [];
 
-        const index = monthList.findIndex((m) => m.id === nextMonthId);
-        const previous = monthList[index + 1];
+        const index = monthList.findIndex((month) => month.id === nextMonthId);
+        const previous = index >= 0 ? monthList[index + 1] : undefined;
         const shouldFallBack =
-          !hasFallenBack.current && sessions.length === 0 && index !== -1 && previous;
+          !hasFallenBack.current && sessions.length === 0 && index !== -1 && previous !== undefined;
 
-        if (shouldFallBack) {
+        if (shouldFallBack && previous) {
           hasFallenBack.current = true;
           nextMonthId = previous.id;
           continue;
@@ -57,8 +70,8 @@ export function useExcitelData() {
         setLastUpdated(new Date());
         break;
       }
-    } catch (err) {
-      setError(err.message);
+    } catch (caught) {
+      setError(getErrorMessage(caught));
     } finally {
       setLoading(false);
     }
@@ -66,7 +79,7 @@ export function useExcitelData() {
 
   // The archive backs the month-over-month strip. It is fetched once and is
   // allowed to fail quietly — the rest of the page does not depend on it.
-  const fetchArchive = useCallback(async () => {
+  const fetchArchive = useCallback(async (): Promise<void> => {
     try {
       const result = await fetchUsageData('all');
       if (result.success) setArchive(result.result.sessions || []);
@@ -76,21 +89,20 @@ export function useExcitelData() {
   }, []);
 
   useEffect(() => {
-    const now = new Date();
-    fetchData(`${now.getMonth() + 1}-${now.getFullYear()}`);
-    fetchArchive();
+    void fetchData(getCurrentMonthId());
+    void fetchArchive();
   }, [fetchData, fetchArchive]);
 
   const changeMonth = useCallback(
-    (monthId) => {
+    (monthId: SelectableMonthId): void => {
       setSelectedMonth(monthId);
-      fetchData(monthId);
+      void fetchData(monthId);
     },
-    [fetchData]
+    [fetchData],
   );
 
-  const refresh = useCallback(async () => {
-    if (!selectedMonth) return;
+  const refresh = useCallback(async (): Promise<void> => {
+    if (selectedMonth === null) return;
     setSyncing(true);
     setError(null);
 
@@ -99,8 +111,8 @@ export function useExcitelData() {
       if (selectedMonth !== 'all') await triggerSync(selectedMonth);
       await fetchData(selectedMonth);
       await fetchArchive();
-    } catch (err) {
-      setError(err.message);
+    } catch (caught) {
+      setError(getErrorMessage(caught));
     } finally {
       setSyncing(false);
     }
@@ -123,14 +135,11 @@ export function useExcitelData() {
     };
   }, [rawSessions]);
 
-  const history = useMemo(
-    () => monthlyTotals(normalizeSessions(archive)),
-    [archive]
-  );
+  const history = useMemo(() => monthlyTotals(normalizeSessions(archive)), [archive]);
 
   const selectedMonthTitle = useMemo(
-    () => months.find((m) => m.id === selectedMonth)?.title ?? null,
-    [months, selectedMonth]
+    () => months.find((month) => month.id === selectedMonth)?.title ?? null,
+    [months, selectedMonth],
   );
 
   return {

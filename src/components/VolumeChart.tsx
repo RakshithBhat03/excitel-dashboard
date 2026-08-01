@@ -9,10 +9,12 @@ import {
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
+  type TooltipContentProps,
   XAxis,
   YAxis,
 } from 'recharts';
 import { formatCompactMinutes, formatGbText } from '../utils/formatters';
+import type { DashboardStats, DailySummary } from '../types/analytics';
 import { Empty, Panel, PanelHead, TipRow, TipShell } from './ui';
 
 const VIEWS = [
@@ -20,9 +22,23 @@ const VIEWS = [
   { key: 'cumulative', label: 'Running total' },
 ];
 
-function DailyTip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+function formatAxisValue(value: unknown): string {
+  const number = typeof value === 'number' ? value : Number(value);
+  return `${number.toFixed(0)}`;
+}
+
+interface ChartPoint extends DailySummary {
+  cumulative: number;
+}
+
+type ChartTooltipProps = {
+  active?: TooltipContentProps<number, string>['active'];
+  payload?: ReadonlyArray<{ payload?: ChartPoint | undefined }>;
+};
+
+function DailyTip({ active, payload }: ChartTooltipProps) {
+  const d = payload?.[0]?.payload;
+  if (!active || !d) return null;
   return (
     <TipShell title={d.fullLabel}>
       <TipRow label="Data" value={formatGbText(d.usage)} swatch="var(--color-s1)" />
@@ -32,9 +48,9 @@ function DailyTip({ active, payload }) {
   );
 }
 
-function CumulativeTip({ active, payload }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
+function CumulativeTip({ active, payload }: ChartTooltipProps) {
+  const d = payload?.[0]?.payload;
+  if (!active || !d) return null;
   return (
     <TipShell title={d.fullLabel}>
       <TipRow label="Total so far" value={formatGbText(d.cumulative)} swatch="var(--color-s1)" />
@@ -43,14 +59,19 @@ function CumulativeTip({ active, payload }) {
   );
 }
 
-export default function VolumeChart({ days, stats }) {
+interface VolumeChartProps {
+  days: DailySummary[];
+  stats: DashboardStats;
+}
+
+export default function VolumeChart({ days, stats }: VolumeChartProps) {
   const [view, setView] = useState('daily');
 
-  const data = useMemo(
+  const data = useMemo<ChartPoint[]>(
     () =>
-      days.reduce((acc, d) => {
-        const previous = acc.length ? acc[acc.length - 1].cumulative : 0;
-        acc.push({ ...d, cumulative: previous + d.usage });
+      days.reduce<ChartPoint[]>((acc, day) => {
+        const previous = acc.at(-1)?.cumulative ?? 0;
+        acc.push({ ...day, cumulative: previous + day.usage });
         return acc;
       }, []),
     [days]
@@ -96,7 +117,11 @@ export default function VolumeChart({ days, stats }) {
 
       <div className="flex-1 p-4 pl-1 sm:pl-2">
         <div className="h-[268px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer
+            width="100%"
+            height="100%"
+            initialDimension={{ width: 640, height: 268 }}
+          >
             {view === 'daily' ? (
               <BarChart data={data} margin={{ top: 12, right: 14, left: 4, bottom: 0 }}>
                 <CartesianGrid
@@ -117,7 +142,7 @@ export default function VolumeChart({ days, stats }) {
                   tickLine={false}
                   axisLine={false}
                   width={36}
-                  tickFormatter={(v) => `${v.toFixed(0)}`}
+                  tickFormatter={formatAxisValue}
                   label={{
                     value: 'GB',
                     position: 'top',
@@ -177,7 +202,7 @@ export default function VolumeChart({ days, stats }) {
                   tickLine={false}
                   axisLine={false}
                   width={36}
-                  tickFormatter={(v) => `${v.toFixed(0)}`}
+                  tickFormatter={formatAxisValue}
                   label={{
                     value: 'GB',
                     position: 'top',

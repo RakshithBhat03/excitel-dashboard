@@ -1,15 +1,15 @@
-import {
-  addDays,
-  format,
-  isValid,
-  parseISO,
-  startOfDay,
-} from 'date-fns';
+import { addDays, format, isValid, parseISO, startOfDay } from 'date-fns';
+import type { DailyAggregate, DailySessionInput } from '../types/analytics';
 
-/* ── Presentation ────────────────────────────────────────────────── */
+export interface FormattedValue {
+  value: string;
+  unit: 'TB' | 'GB' | 'MB' | 'sec' | 'min' | 'hrs' | 'days' | '';
+}
+
+export type DateInput = Date | string;
 
 /** Volume, given gigabytes. Rolls up to TB so month totals stay readable. */
-export function formatGb(gb, decimals) {
+export function formatGb(gb: number, decimals?: number): FormattedValue {
   const value = Number(gb) || 0;
   if (value >= 1024) {
     return { value: (value / 1024).toFixed(decimals ?? 2), unit: 'TB' };
@@ -20,28 +20,28 @@ export function formatGb(gb, decimals) {
   return { value: (value * 1024).toFixed(decimals ?? 0), unit: 'MB' };
 }
 
-export function formatGbText(gb, decimals) {
+export function formatGbText(gb: number, decimals?: number): string {
   const { value, unit } = formatGb(gb, decimals);
   return `${value} ${unit}`;
 }
 
 /** Duration, given minutes. */
-export function formatMinutes(minutes) {
-  const m = Math.max(0, Number(minutes) || 0);
-  if (m < 1) return { value: Math.round(m * 60).toString(), unit: 'sec' };
-  if (m < 60) return { value: m.toFixed(0), unit: 'min' };
-  const hours = m / 60;
+export function formatMinutes(minutes: number): FormattedValue {
+  const value = Math.max(0, Number(minutes) || 0);
+  if (value < 1) return { value: Math.round(value * 60).toString(), unit: 'sec' };
+  if (value < 60) return { value: value.toFixed(0), unit: 'min' };
+  const hours = value / 60;
   if (hours < 48) return { value: hours.toFixed(1), unit: 'hrs' };
   return { value: (hours / 24).toFixed(1), unit: 'days' };
 }
 
-export function formatMinutesText(minutes) {
+export function formatMinutesText(minutes: number): string {
   const { value, unit } = formatMinutes(minutes);
   return `${value} ${unit}`;
 }
 
 /** Compact duration for dense table cells: 1d 4h, 23h 59m, 7m. */
-export function formatCompactMinutes(minutes) {
+export function formatCompactMinutes(minutes: number): string {
   const total = Math.round(Math.max(0, Number(minutes) || 0));
   const days = Math.floor(total / 1440);
   const hours = Math.floor((total % 1440) / 60);
@@ -51,65 +51,59 @@ export function formatCompactMinutes(minutes) {
   return `${mins}m`;
 }
 
+function asDate(value: DateInput): Date {
+  return value instanceof Date ? value : parseISO(value);
+}
+
 /** Timestamps arrive already in IST from the Excitel API. */
-export function formatStamp(date) {
-  const d = date instanceof Date ? date : parseISO(date);
-  return isValid(d) ? format(d, 'dd MMM · HH:mm') : '—';
+export function formatStamp(date: DateInput): string {
+  const value = asDate(date);
+  return isValid(value) ? format(value, 'dd MMM · HH:mm') : '—';
 }
 
-export function formatClock(date) {
-  const d = date instanceof Date ? date : parseISO(date);
-  return isValid(d) ? format(d, 'HH:mm') : '—';
+export function formatClock(date: DateInput): string {
+  const value = asDate(date);
+  return isValid(value) ? format(value, 'HH:mm') : '—';
 }
 
-export function formatDay(date) {
-  const d = date instanceof Date ? date : parseISO(date);
-  return isValid(d) ? format(d, 'EEE, dd MMM yyyy') : '—';
+export function formatDay(date: DateInput): string {
+  const value = asDate(date);
+  return isValid(value) ? format(value, 'EEE, dd MMM yyyy') : '—';
 }
 
 /** Minute offset within a day → 04:16. Used by the timeline tooltip. */
-export function minuteOfDayToClock(minute) {
-  const m = Math.max(0, Math.min(1440, Math.round(minute)));
-  const h = Math.floor(m / 60);
-  return `${String(h).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+export function minuteOfDayToClock(minute: number): string {
+  const value = Math.max(0, Math.min(1440, Math.round(minute)));
+  const hours = Math.floor(value / 60);
+  return `${String(hours).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
 }
 
-export function signedPercent(value, decimals = 1) {
-  const n = Number(value) || 0;
-  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(decimals)}%`;
+export function signedPercent(value: number, decimals = 1): string {
+  const number = Number(value) || 0;
+  return `${number > 0 ? '+' : number < 0 ? '−' : ''}${Math.abs(number).toFixed(decimals)}%`;
 }
 
-/* ── Daily aggregation ───────────────────────────────────────────── */
-
-function splitSessionByDay(session) {
+function splitSessionByDay(session: DailySessionInput): DailyAggregate[] {
   const startDate = parseISO(session.sessionStartDate);
   const endDate = parseISO(session.sessionEndDate);
   const usageTimeMinutes = Number(session.usageTime);
   const usageVolumeMb = Number(session.usageVolume);
 
-  if (!isValid(startDate) || !isValid(endDate) || endDate <= startDate) {
-    return [];
-  }
-
-  if (!Number.isFinite(usageTimeMinutes) || !Number.isFinite(usageVolumeMb)) {
-    return [];
-  }
+  if (!isValid(startDate) || !isValid(endDate) || endDate <= startDate) return [];
+  if (!Number.isFinite(usageTimeMinutes) || !Number.isFinite(usageVolumeMb)) return [];
 
   const totalDurationMs = endDate.getTime() - startDate.getTime();
   let segmentStart = startDate;
-  const segments = [];
+  const segments: DailyAggregate[] = [];
 
   while (segmentStart < endDate) {
     const nextDayStart = addDays(startOfDay(segmentStart), 1);
     const segmentEnd = nextDayStart < endDate ? nextDayStart : endDate;
     const segmentDurationMs = segmentEnd.getTime() - segmentStart.getTime();
 
-    if (segmentDurationMs <= 0) {
-      break;
-    }
+    if (segmentDurationMs <= 0) break;
 
     const share = segmentDurationMs / totalDurationMs;
-
     segments.push({
       dateKey: format(segmentStart, 'yyyy-MM-dd'),
       label: format(segmentStart, 'MMM dd'),
@@ -125,13 +119,13 @@ function splitSessionByDay(session) {
   return segments;
 }
 
-export function aggregateSessionsByDay(sessions) {
-  if (!sessions || sessions.length === 0) return [];
+export function aggregateSessionsByDay(sessions: DailySessionInput[]): DailyAggregate[] {
+  if (sessions.length === 0) return [];
 
-  const dailyTotals = new Map();
+  const dailyTotals = new Map<string, DailyAggregate>();
 
-  sessions.forEach((session) => {
-    splitSessionByDay(session).forEach((segment) => {
+  for (const session of sessions) {
+    for (const segment of splitSessionByDay(session)) {
       const existingDay = dailyTotals.get(segment.dateKey) ?? {
         dateKey: segment.dateKey,
         label: segment.label,
@@ -144,10 +138,9 @@ export function aggregateSessionsByDay(sessions) {
       existingDay.usage += segment.usage;
       existingDay.duration += segment.duration;
       existingDay.sessionCount += segment.sessionCount;
-
       dailyTotals.set(segment.dateKey, existingDay);
-    });
-  });
+    }
+  }
 
-  return Array.from(dailyTotals.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  return [...dailyTotals.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }

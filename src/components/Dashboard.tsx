@@ -1,6 +1,18 @@
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { TriangleAlert } from 'lucide-react';
+import type { SelectableMonth, SelectableMonthId } from '../../shared/contracts';
 import { cn } from '../lib/utils';
+import type {
+  AddressPoolSummary,
+  DashboardStats,
+  DailySummary,
+  CurrentLinkState,
+  MonthlyHistoryEntry,
+  NormalizedSession,
+  Outage,
+  TerminationCauseSummary,
+  WeekdayProfile as WeekdayProfileData,
+} from '../types/analytics';
 import {
   formatCompactMinutes,
   formatDay,
@@ -24,6 +36,36 @@ import WeekdayProfile from './WeekdayProfile';
 // alongside the session request rather than after it.
 const VolumeChart = lazy(() => import('./VolumeChart'));
 
+interface DashboardProps {
+  rows: NormalizedSession[];
+  days: DailySummary[];
+  outages: Outage[];
+  stats: DashboardStats;
+  weekdays: WeekdayProfileData[];
+  causes: TerminationCauseSummary[];
+  pool: AddressPoolSummary;
+  link: CurrentLinkState;
+  history: MonthlyHistoryEntry[];
+  months: SelectableMonth[];
+  selectedMonth: SelectableMonthId | null;
+  selectedMonthTitle: string | null;
+  loading: boolean;
+  syncing: boolean;
+  lastUpdated: Date | null;
+  error: string | null;
+  onMonthChange: (monthId: SelectableMonthId) => void;
+  onRefresh: () => Promise<void>;
+}
+
+interface MetricTileData {
+  label: string;
+  value: string;
+  unit: string;
+  note: string;
+  spark?: number[] | undefined;
+  accent?: string | undefined;
+}
+
 export default function Dashboard({
   rows,
   days,
@@ -43,14 +85,14 @@ export default function Dashboard({
   error,
   onMonthChange,
   onRefresh,
-}) {
+}: DashboardProps) {
   // Warm the chart chunk while the session request is still in flight, so the
   // panel is ready to render the moment the data lands.
   useEffect(() => {
-    import('./VolumeChart');
+    void import('./VolumeChart');
   }, []);
 
-  const tiles = useMemo(() => {
+  const tiles = useMemo<MetricTileData[]>(() => {
     const spark = days.map((d) => d.usage);
     const total = formatGb(stats.totalGb);
     const online = formatMinutes(stats.totalMinutes);
@@ -104,7 +146,7 @@ export default function Dashboard({
     ];
   }, [days, stats]);
 
-  const periodNote = stats.periodStart
+  const periodNote = stats.periodStart && stats.periodEnd
     ? `${formatDay(stats.periodStart)} → ${formatDay(stats.periodEnd)}`
     : null;
 
@@ -199,7 +241,13 @@ export default function Dashboard({
   );
 }
 
-function ErrorNote({ message, onRetry }) {
+function ErrorNote({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => Promise<void>;
+}) {
   return (
     <div className="panel mb-4 flex flex-wrap items-center gap-3 border-[color-mix(in_oklab,var(--color-down)_40%,transparent)] px-4 py-3">
       <TriangleAlert className="w-4 h-4 shrink-0 text-[var(--color-down)]" />
@@ -209,14 +257,14 @@ function ErrorNote({ message, onRetry }) {
         </p>
         <p className="text-[12px] text-[var(--color-ink-2)]">{message}</p>
       </div>
-      <button type="button" onClick={onRetry} className="btn">
+      <button type="button" onClick={() => void onRetry()} className="btn">
         Try again
       </button>
     </div>
   );
 }
 
-function NoData({ onRefresh }) {
+function NoData({ onRefresh }: { onRefresh: () => Promise<void> }) {
   return (
     <div className="panel flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
       <p className="label">No records</p>
@@ -227,7 +275,7 @@ function NoData({ onRefresh }) {
         Pick another period from the archive, or sync to pull the latest records from
         Excitel.
       </p>
-      <button type="button" onClick={onRefresh} className="btn btn-primary mt-1">
+      <button type="button" onClick={() => void onRefresh()} className="btn btn-primary mt-1">
         Sync now
       </button>
     </div>
@@ -255,6 +303,6 @@ function Loading() {
   );
 }
 
-function Block({ className }) {
+function Block({ className }: { className: string }) {
   return <div className={cn('panel skeleton', className)} />;
 }

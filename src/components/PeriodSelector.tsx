@@ -1,17 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
+import type { SelectableMonth, SelectableMonthId } from '../../shared/contracts';
 import { cn } from '../lib/utils';
 
-export default function PeriodSelector({ months, selected, onSelect, disabled }) {
+interface PeriodSelectorProps {
+  months: SelectableMonth[];
+  selected: SelectableMonthId | null;
+  onSelect: (monthId: SelectableMonthId) => void;
+  disabled: boolean;
+}
+
+export default function PeriodSelector({
+  months,
+  selected,
+  onSelect,
+  disabled,
+}: PeriodSelectorProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
-    const close = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    const close = (event: MouseEvent): void => {
+      if (
+        ref.current &&
+        event.target instanceof Node &&
+        !ref.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
     };
-    const escape = (e) => e.key === 'Escape' && setOpen(false);
+    const escape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', escape);
     return () => {
