@@ -1,4 +1,5 @@
 import { formatGbText } from '../utils/formatters';
+import type { AddressPoolSummary } from '../types/analytics';
 import { Empty, Panel, PanelHead } from './ui';
 
 /**
@@ -6,7 +7,12 @@ import { Empty, Panel, PanelHead } from './ui';
  * would just be the session list. What's actually readable is the pool: how
  * many distinct addresses were handed out, and which /24 blocks they came from.
  */
-export default function AddressPool({ pool, sessionCount }) {
+interface AddressPoolProps {
+  pool: AddressPoolSummary;
+  sessionCount: number;
+}
+
+export default function AddressPool({ pool, sessionCount }: AddressPoolProps) {
   if (!pool.uniqueAddresses) {
     return (
       <Panel className="min-h-[240px]">

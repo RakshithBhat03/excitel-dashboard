@@ -1,6 +1,8 @@
 import { memo, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Search } from 'lucide-react';
 import { cn } from '../lib/utils';
+import type { DailySummary, NormalizedSession } from '../types/analytics';
 import {
   formatCompactMinutes,
   formatGb,
@@ -11,12 +13,30 @@ import { Empty, Panel, PanelHead } from './ui';
 
 const FAULTS = new Set(['Lost Carrier', 'NAS Error', 'NAS Reboot', 'Port Error']);
 
-const VIEWS = [
+type TableView = 'days' | 'sessions';
+type SortDirection = 'asc' | 'desc';
+type SessionSortField = 'start' | 'end' | 'minutes' | 'gb';
+type DaySortField = 'dateKey' | 'usage' | 'connectedMinutes' | 'sessionCount';
+type ColumnKey = SessionSortField | DaySortField | 'share' | 'ip' | 'cause';
+
+interface SortState<Field extends string> {
+  field: Field;
+  dir: SortDirection;
+}
+
+interface TableColumn {
+  key: ColumnKey;
+  label: string;
+  sortable: boolean;
+  align: 'left' | 'right';
+}
+
+const VIEWS: Array<{ key: TableView; label: string }> = [
   { key: 'days', label: 'Days' },
   { key: 'sessions', label: 'Sessions' },
 ];
 
-const SESSION_COLUMNS = [
+const SESSION_COLUMNS: TableColumn[] = [
   { key: 'start', label: 'Started', sortable: true, align: 'left' },
   { key: 'end', label: 'Ended', sortable: true, align: 'left' },
   { key: 'minutes', label: 'Duration', sortable: true, align: 'right' },
@@ -26,7 +46,7 @@ const SESSION_COLUMNS = [
   { key: 'cause', label: 'Ended by', sortable: false, align: 'right' },
 ];
 
-const DAY_COLUMNS = [
+const DAY_COLUMNS: TableColumn[] = [
   { key: 'dateKey', label: 'Date', sortable: true, align: 'left' },
   { key: 'usage', label: 'Data', sortable: true, align: 'right' },
   { key: 'share', label: '', sortable: false, align: 'left' },
@@ -34,14 +54,22 @@ const DAY_COLUMNS = [
   { key: 'sessionCount', label: 'Sessions', sortable: true, align: 'right' },
 ];
 
-const Sort = memo(({ on, dir }) => {
+const Sort = memo(function Sort({ on, dir }: { on: boolean; dir: SortDirection }): ReactNode {
   if (!on) return <span className="ml-1 text-[var(--color-line-2)]">↕</span>;
   const Icon = dir === 'asc' ? ArrowUp : ArrowDown;
   return <Icon className="ml-1 inline w-3 h-3 text-[var(--color-s1)]" />;
 });
 Sort.displayName = 'Sort';
 
-function Bar({ value, max, color = 'var(--color-s1)' }) {
+function Bar({
+  value,
+  max,
+  color = 'var(--color-s1)',
+}: {
+  value: number;
+  max: number;
+  color?: string | undefined;
+}): ReactNode {
   return (
     <span className="block h-1.5 w-full min-w-[52px] overflow-hidden rounded-full bg-[var(--color-well)]">
       <span
@@ -52,7 +80,7 @@ function Bar({ value, max, color = 'var(--color-s1)' }) {
   );
 }
 
-function Value({ gb }) {
+function Value({ gb }: { gb: number }): ReactNode {
   const { value, unit } = formatGb(gb);
   return (
     <>
@@ -62,11 +90,29 @@ function Value({ gb }) {
   );
 }
 
-export default function SessionsTable({ rows, days }) {
-  const [view, setView] = useState('days');
+function compareSortable(left: string | number | Date, right: string | number | Date): number {
+  const leftValue = left instanceof Date ? left.getTime() : left;
+  const rightValue = right instanceof Date ? right.getTime() : right;
+  if (leftValue === rightValue) return 0;
+  return leftValue > rightValue ? 1 : -1;
+}
+
+interface SessionsTableProps {
+  rows: NormalizedSession[];
+  days: DailySummary[];
+}
+
+export default function SessionsTable({ rows, days }: SessionsTableProps) {
+  const [view, setView] = useState<TableView>('days');
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState({ field: 'start', dir: 'desc' });
-  const [daySort, setDaySort] = useState({ field: 'dateKey', dir: 'desc' });
+  const [sort, setSort] = useState<SortState<SessionSortField>>({
+    field: 'start',
+    dir: 'desc',
+  });
+  const [daySort, setDaySort] = useState<SortState<DaySortField>>({
+    field: 'dateKey',
+    dir: 'desc',
+  });
 
   const sessionRows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -83,8 +129,7 @@ export default function SessionsTable({ rows, days }) {
     return [...filtered].sort((a, b) => {
       const av = a[sort.field];
       const bv = b[sort.field];
-      if (av === bv) return 0;
-      return av > bv ? sign : -sign;
+      return compareSortable(av, bv) * sign;
     });
   }, [rows, query, sort]);
 
@@ -95,8 +140,7 @@ export default function SessionsTable({ rows, days }) {
       .sort((a, b) => {
         const av = a[daySort.field];
         const bv = b[daySort.field];
-        if (av === bv) return 0;
-        return av > bv ? sign : -sign;
+        return compareSortable(av, bv) * sign;
       });
   }, [days, daySort]);
 
@@ -106,12 +150,18 @@ export default function SessionsTable({ rows, days }) {
   );
   const maxDayGb = useMemo(() => days.reduce((m, d) => Math.max(m, d.usage), 0), [days]);
 
-  const toggle = (field, current, set) => {
-    if (current.field === field) {
-      set({ field, dir: current.dir === 'asc' ? 'desc' : 'asc' });
-    } else {
-      set({ field, dir: 'desc' });
-    }
+  const toggleSessionSort = (field: SessionSortField): void => {
+    setSort((current) => ({
+      field,
+      dir: current.field === field ? (current.dir === 'asc' ? 'desc' : 'asc') : 'desc',
+    }));
+  };
+
+  const toggleDaySort = (field: DaySortField): void => {
+    setDaySort((current) => ({
+      field,
+      dir: current.field === field ? (current.dir === 'asc' ? 'desc' : 'asc') : 'desc',
+    }));
   };
 
   const isDays = view === 'days';
@@ -178,7 +228,13 @@ export default function SessionsTable({ rows, days }) {
                     )}
                     onClick={
                       c.sortable
-                        ? () => toggle(c.key, activeSort, isDays ? setDaySort : setSort)
+                        ? () => {
+                            if (isDays) {
+                              toggleDaySort(c.key as DaySortField);
+                            } else {
+                              toggleSessionSort(c.key as SessionSortField);
+                            }
+                          }
                         : undefined
                     }
                   >

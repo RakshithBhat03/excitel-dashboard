@@ -1,10 +1,22 @@
 import { cn } from '../lib/utils';
 import { Sparkline } from './ui';
+import type { ReactNode } from 'react';
 
 /**
  * A readout, not a card. Label on top, the number as the whole point, one
  * line of context underneath. No icons — the label already says what it is.
  */
+interface MetricTileProps {
+  label: string;
+  value: string;
+  unit: string;
+  note: string;
+  spark?: number[] | undefined;
+  sparkColor?: string | undefined;
+  accent?: string | undefined;
+  className?: string | undefined;
+}
+
 export default function MetricTile({
   label,
   value,
@@ -14,7 +26,7 @@ export default function MetricTile({
   sparkColor = 'var(--color-s1)',
   accent,
   className,
-}) {
+}: MetricTileProps): ReactNode {
   return (
     <div
       className={cn(

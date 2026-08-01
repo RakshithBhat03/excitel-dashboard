@@ -1,8 +1,21 @@
 import { RefreshCw } from 'lucide-react';
+import type { SelectableMonth, SelectableMonthId } from '../../shared/contracts';
 import { cn } from '../lib/utils';
+import type { CurrentLinkState } from '../types/analytics';
 import { formatClock } from '../utils/formatters';
 import PeriodSelector from './PeriodSelector';
 import ThemeToggle from './ThemeToggle';
+
+interface CommandBarProps {
+  link: CurrentLinkState;
+  months: SelectableMonth[];
+  selectedMonth: SelectableMonthId | null;
+  onMonthChange: (monthId: SelectableMonthId) => void;
+  onRefresh: () => Promise<void>;
+  syncing: boolean;
+  loading: boolean;
+  lastUpdated: Date | null;
+}
 
 export default function CommandBar({
   link,
@@ -13,7 +26,7 @@ export default function CommandBar({
   syncing,
   loading,
   lastUpdated,
-}) {
+}: CommandBarProps) {
   const up = link.up;
 
   return (
@@ -73,7 +86,7 @@ export default function CommandBar({
           />
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={() => void onRefresh()}
             disabled={syncing || loading}
             className="btn btn-primary"
           >

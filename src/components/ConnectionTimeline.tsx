@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import type { DailySummary, Outage } from '../types/analytics';
 import { formatCompactMinutes, formatGbText, minuteOfDayToClock } from '../utils/formatters';
 import { Empty, Panel, PanelHead, TipRow, TipShell } from './ui';
 
@@ -25,27 +26,43 @@ const RAMP = [
 
 const HOUR_MARKS = [0, 6, 12, 18, 24];
 
-function step(usage, max) {
+function step(usage: number, max: number): number {
   if (!usage || !max) return 0;
   return Math.min(5, Math.max(1, Math.ceil((usage / max) * 5)));
 }
 
-export default function ConnectionTimeline({ days, outages, stats }) {
-  const [hover, setHover] = useState(null);
+interface TimelineColumn extends DailySummary {
+  tone: string;
+  drops: Outage[];
+}
 
-  const model = useMemo(() => {
+interface ConnectionTimelineProps {
+  days: DailySummary[];
+  outages: Outage[];
+  stats: import('../types/analytics').DashboardStats;
+}
+
+export default function ConnectionTimeline({
+  days,
+  outages,
+  stats,
+}: ConnectionTimelineProps) {
+  const [hover, setHover] = useState<number | null>(null);
+
+  const model = useMemo<{ max: number; columns: TimelineColumn[] }>(() => {
     const max = days.reduce((m, d) => Math.max(m, d.usage), 0);
-    const byDay = new Map();
-    for (const o of outages) {
-      const key = format(o.from, 'yyyy-MM-dd');
-      if (!byDay.has(key)) byDay.set(key, []);
-      byDay.get(key).push(o);
+    const byDay = new Map<string, Outage[]>();
+    for (const outage of outages) {
+      const key = format(outage.from, 'yyyy-MM-dd');
+      const dayOutages = byDay.get(key) ?? [];
+      dayOutages.push(outage);
+      byDay.set(key, dayOutages);
     }
     return {
       max,
       columns: days.map((d) => ({
         ...d,
-        tone: RAMP[step(d.usage, max)],
+        tone: RAMP[step(d.usage, max)] ?? RAMP[0] ?? 'var(--color-ramp-0)',
         drops: byDay.get(d.dateKey) || [],
       })),
     };
@@ -62,7 +79,7 @@ export default function ConnectionTimeline({ days, outages, stats }) {
 
   const { columns, max } = model;
   const dense = columns.length > 45;
-  const active = hover !== null ? columns[hover] : null;
+  const active = hover !== null ? columns[hover] ?? null : null;
 
   // Date ticks: first, last, and a handful in between.
   const tickEvery = Math.max(1, Math.round(columns.length / 8));
@@ -184,7 +201,7 @@ export default function ConnectionTimeline({ days, outages, stats }) {
               )}
             </div>
 
-            {active && (
+            {active && hover !== null && (
               <div
                 className="absolute z-20 pointer-events-none"
                 style={{

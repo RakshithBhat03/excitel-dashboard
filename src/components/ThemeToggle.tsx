@@ -1,7 +1,9 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import type { Theme } from '../context/ThemeContext';
 
-const OPTIONS = [
+const OPTIONS: Array<{ key: Theme; Icon: LucideIcon; label: string }> = [
   { key: 'light', Icon: Sun, label: 'Light' },
   { key: 'dark', Icon: Moon, label: 'Dark' },
   { key: 'system', Icon: Monitor, label: 'Match system' },

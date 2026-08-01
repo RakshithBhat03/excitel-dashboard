@@ -1,12 +1,24 @@
 import { cn } from '../lib/utils';
 import { formatCompactMinutes, formatGb, formatGbText } from '../utils/formatters';
+import type { MonthlyHistoryEntry } from '../types/analytics';
+import type { SelectableMonthId } from '../../shared/contracts';
 import { Empty, Panel, PanelHead } from './ui';
 
 /**
  * Month-over-month totals across the whole archive. Clicking a month loads it,
  * so the strip doubles as navigation.
  */
-export default function MonthlyHistory({ history, selectedMonth, onSelect }) {
+interface MonthlyHistoryProps {
+  history: MonthlyHistoryEntry[];
+  selectedMonth: SelectableMonthId | null;
+  onSelect: (monthId: SelectableMonthId) => void;
+}
+
+export default function MonthlyHistory({
+  history,
+  selectedMonth,
+  onSelect,
+}: MonthlyHistoryProps) {
   if (!history.length) {
     return (
       <Panel className="min-h-[240px]">
@@ -17,7 +29,11 @@ export default function MonthlyHistory({ history, selectedMonth, onSelect }) {
   }
 
   const max = history.reduce((m, h) => Math.max(m, h.gb), 0);
-  const busiest = history.reduce((m, h) => (h.gb > m.gb ? h : m), history[0]);
+  const first = history[0];
+  if (!first) return null;
+  const busiest = history.reduce((current, historyEntry) =>
+    historyEntry.gb > current.gb ? historyEntry : current,
+  first);
 
   return (
     <Panel>

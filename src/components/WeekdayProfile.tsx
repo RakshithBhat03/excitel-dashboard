@@ -1,11 +1,12 @@
 import { formatGbText } from '../utils/formatters';
+import type { WeekdayProfile as WeekdayProfileData } from '../types/analytics';
 import { Empty, Panel, PanelHead } from './ui';
 
 /**
  * Average consumption by day of the week. Days without sessions are excluded
  * from their weekday's average so a partial month doesn't drag it down.
  */
-export default function WeekdayProfile({ weekdays }) {
+export default function WeekdayProfile({ weekdays }: { weekdays: WeekdayProfileData[] }) {
   const measured = weekdays.filter((w) => w.days > 0);
 
   if (!measured.length) {
@@ -18,7 +19,9 @@ export default function WeekdayProfile({ weekdays }) {
   }
 
   const max = measured.reduce((m, w) => Math.max(m, w.avg), 0);
-  const top = measured.reduce((m, w) => (w.avg > m.avg ? w : m), measured[0]);
+  const first = measured[0];
+  if (!first) return null;
+  const top = measured.reduce((m, w) => (w.avg > m.avg ? w : m), first);
 
   return (
     <Panel>

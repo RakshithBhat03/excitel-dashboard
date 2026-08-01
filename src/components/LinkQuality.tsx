@@ -1,18 +1,25 @@
 import { AlertTriangle, CircleCheck } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { formatCompactMinutes } from '../utils/formatters';
+import type { DashboardStats, TerminationCauseSummary } from '../types/analytics';
 import { Empty, Panel, PanelHead } from './ui';
 
 /** Causes that mean the line dropped on its own, rather than re-authenticating. */
 const FAULTS = new Set(['Lost Carrier', 'NAS Error', 'NAS Reboot', 'Port Error']);
 
-function causeStyle(cause) {
+function causeStyle(cause: string): { color: string; Icon: LucideIcon; note: string } {
   if (FAULTS.has(cause)) {
     return { color: 'var(--color-down)', Icon: AlertTriangle, note: 'line dropped' };
   }
   return { color: 'var(--color-s1)', Icon: CircleCheck, note: 'normal reconnect' };
 }
 
-export default function LinkQuality({ stats, causes }) {
+interface LinkQualityProps {
+  stats: DashboardStats;
+  causes: TerminationCauseSummary[];
+}
+
+export default function LinkQuality({ stats, causes }: LinkQualityProps) {
   if (!stats.sessionCount) {
     return (
       <Panel className="min-h-[280px]">
@@ -22,7 +29,13 @@ export default function LinkQuality({ stats, causes }) {
     );
   }
 
-  const [whole, frac] = stats.uptimePercent.toFixed(2).split('.');
+  const [whole = '0', frac = '00'] = stats.uptimePercent.toFixed(2).split('.');
+
+  const summaryRows: Array<[string, string]> = [
+    ['Offline', stats.downMinutes ? formatCompactMinutes(stats.downMinutes) : '0m'],
+    ['Drops', String(stats.outageCount)],
+    ['Longest run', formatCompactMinutes(stats.longestRunMinutes)],
+  ];
 
   return (
     <Panel>
@@ -41,11 +54,7 @@ export default function LinkQuality({ stats, causes }) {
         </p>
 
         <dl className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-line)]">
-          {[
-            ['Offline', stats.downMinutes ? formatCompactMinutes(stats.downMinutes) : '0m'],
-            ['Drops', String(stats.outageCount)],
-            ['Longest run', formatCompactMinutes(stats.longestRunMinutes)],
-          ].map(([term, value]) => (
+          {summaryRows.map(([term, value]) => (
             <div key={term} className="bg-[var(--color-panel)] px-2.5 py-2">
               <dt className="label truncate">{term}</dt>
               <dd className="num mt-1 text-[15px] font-medium text-[var(--color-ink)]">{value}</dd>

@@ -1,11 +1,17 @@
 import { formatCompactMinutes, formatDay, formatClock } from '../utils/formatters';
+import type { DashboardStats, Outage } from '../types/analytics';
 import { Empty, Panel, PanelHead } from './ui';
 
 /**
  * Every break in service in the period, longest first. A break is the gap
  * between one session ending and the next beginning — measured, not inferred.
  */
-export default function OutageLog({ outages, stats }) {
+interface OutageLogProps {
+  outages: Outage[];
+  stats: DashboardStats;
+}
+
+export default function OutageLog({ outages, stats }: OutageLogProps) {
   return (
     <Panel>
       <PanelHead
