@@ -20,8 +20,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: ../docker/backend/Dockerfile
+      context: .
+      dockerfile: docker/backend/Dockerfile
     container_name: excitel-backend
     restart: unless-stopped
     environment:
@@ -64,8 +64,8 @@ services:
 
   worker:
     build:
-      context: ./worker
-      dockerfile: ../docker/worker/Dockerfile
+      context: .
+      dockerfile: docker/worker/Dockerfile
     container_name: excitel-worker
     restart: unless-stopped
     environment:
