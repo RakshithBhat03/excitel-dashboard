@@ -1,291 +1,333 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Geist:wght@300..800&family=Geist+Mono:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Martian+Mono:wdth,wght@75..112.5,200..700&display=swap');
 @import "tailwindcss";
 
-/* ---------------------------------------------------------------
-   EDITORIAL TELEMETRY — design tokens
-   Warm paper light mode + onyx dark mode
-   --------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════
+   LINE MONITOR — design tokens
+
+   A precision-instrument readout for a single fibre line.
+   Cool slate surfaces, hairline rules, one teal signal colour.
+
+   The chart palette is validated (dataviz six-checks, all-pairs,
+   both modes): slots teal → violet → amber. Red and green are
+   reserved status colours and always ship with a label, never
+   as "series 4".
+   ═══════════════════════════════════════════════════════════════════ */
 
 @theme {
-  /* --- Surface palette: warm paper --- */
-  --color-background: #f3eee4;        /* bone */
-  --color-surface:    #faf6ec;        /* paper */
-  --color-foreground: #0d0d10;        /* ink */
-  --color-card:       #fefcf6;        /* card surface */
-  --color-card-foreground: #0d0d10;
+  /* Surfaces — cool slate, never cream */
+  --color-canvas:   #e8ecef;
+  --color-panel:    #fbfcfd;
+  --color-inset:    #f1f4f6;
+  --color-well:     #e3e8ec;
 
-  --color-muted:           #ece5d4;
-  --color-muted-foreground:#6b6457;
-  --color-subtle:          #d8d0bb;
+  /* Ink */
+  --color-ink:      #0a1418;
+  --color-ink-2:    #46565e;
+  --color-ink-3:    #78888f;
 
-  --color-border:    #e0d8c4;
-  --color-border-strong: #cdc3aa;
-  --color-input:     #e0d8c4;
-  --color-ring:      #ff5b1f;
+  /* Rules */
+  --color-line:     #d5dcE1;
+  --color-line-2:   #bcc6cd;
 
-  /* --- Brand / accent: signal colors --- */
-  --color-brand-primary:    #ff5b1f;  /* hot coral */
-  --color-brand-primary-soft:#ffe2d4;
-  --color-brand-secondary:  #1f5dff;  /* electric blue */
-  --color-brand-tertiary:   #007a4d;  /* deep emerald */
+  /* Chart series — validated categorical, fixed order */
+  --color-s1:       #00918d;   /* teal    — volume, the primary measure */
+  --color-s2:       #5b4bd6;   /* violet  — secondary series */
+  --color-s3:       #a06400;   /* amber   — tertiary series */
 
-  --color-success: #0d8b4f;
-  --color-warning: #c08400;
-  --color-danger:  #c4361b;
-  --color-info:    #1f5dff;
+  /* Status — reserved, always with a label */
+  --color-up:       #0e7c4a;
+  --color-warn:     #a06400;
+  --color-down:     #c0362f;
 
-  /* --- Chart palette --- */
-  --color-chart-1: #ff5b1f;  /* coral */
-  --color-chart-2: #1f5dff;  /* blue */
-  --color-chart-3: #0d8b4f;  /* emerald */
-  --color-chart-4: #6b4cff;  /* violet */
-  --color-chart-5: #c08400;  /* amber */
-  --color-chart-grid: #d8d0bb;
+  /* Sequential teal ramp, light → dark (magnitude encoding) */
+  --color-ramp-0:   #e4eeee;
+  --color-ramp-1:   #c2e2e0;
+  --color-ramp-2:   #92d0cd;
+  --color-ramp-3:   #4fb6b2;
+  --color-ramp-4:   #00918d;
+  --color-ramp-5:   #006f6c;
 
-  /* fonts */
-  --font-display: 'Fraunces', 'Times New Roman', serif;
-  --font-sans:    'Geist', ui-sans-serif, system-ui, sans-serif;
-  --font-mono:    'Geist Mono', ui-monospace, 'SF Mono', monospace;
+  /* Type */
+  --font-sans:    'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Martian Mono', ui-monospace, 'SF Mono', monospace;
+  --font-mono:    'Martian Mono', ui-monospace, 'SF Mono', monospace;
 
-  /* shadows — soft paper drop */
-  --shadow-paper: 0 1px 0 rgba(31,28,18,.04), 0 1px 3px rgba(31,28,18,.06);
-  --shadow-lift:  0 1px 0 rgba(31,28,18,.04), 0 12px 24px -12px rgba(31,28,18,.18);
-
-  /* legacy compat */
-  --color-card-blue: #fefcf6;
-  --color-card-blue-border: #e0d8c4;
-  --color-card-blue-icon: #1f5dff;
-  --color-card-amber: #fefcf6;
-  --color-card-amber-border: #e0d8c4;
-  --color-card-amber-icon: #c08400;
-  --color-card-emerald: #fefcf6;
-  --color-card-emerald-border: #e0d8c4;
-  --color-card-emerald-icon: #0d8b4f;
-  --color-card-violet: #fefcf6;
-  --color-card-violet-border: #e0d8c4;
-  --color-card-violet-icon: #6b4cff;
-  --color-card-teal: #fefcf6;
-  --color-card-teal-border: #e0d8c4;
-  --color-card-teal-icon: #ff5b1f;
+  --shadow-panel: 0 1px 2px rgb(10 20 24 / 0.05);
+  --shadow-pop:   0 8px 28px -8px rgb(10 20 24 / 0.22), 0 1px 2px rgb(10 20 24 / 0.08);
 }
 
-/* ----- Dark mode: onyx + coral + mint glow ----- */
 .dark {
-  --color-background: #0a0b0d;
-  --color-surface:    #101216;
-  --color-foreground: #f1ede2;
-  --color-card:       #14171c;
-  --color-card-foreground: #f1ede2;
+  --color-canvas:   #080d10;
+  --color-panel:    #111a1f;
+  --color-inset:    #182429;
+  --color-well:     #1e2c32;
 
-  --color-muted:           #1c2026;
-  --color-muted-foreground:#8b8676;
-  --color-subtle:          #2a2f37;
+  --color-ink:      #e6f0f2;
+  --color-ink-2:    #9cadb5;
+  --color-ink-3:    #74878f;
 
-  --color-border:    #23272f;
-  --color-border-strong:#363c46;
-  --color-input:     #23272f;
-  --color-ring:      #ff7a4a;
+  --color-line:     #223037;
+  --color-line-2:   #35484f;
 
-  --color-brand-primary:    #ff7a4a;
-  --color-brand-primary-soft:#3a2014;
-  --color-brand-secondary:  #5b8bff;
-  --color-brand-tertiary:   #2dd4bf;
+  --color-s1:       #0fa69f;
+  --color-s2:       #8878e6;
+  --color-s3:       #bc8226;
 
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger:  #fb7185;
-  --color-info:    #5b8bff;
+  --color-up:       #32b473;
+  --color-warn:     #bc8226;
+  --color-down:     #e2605a;
 
-  --color-chart-1: #ff7a4a;
-  --color-chart-2: #5b8bff;
-  --color-chart-3: #2dd4bf;
-  --color-chart-4: #b39bff;
-  --color-chart-5: #fbbf24;
-  --color-chart-grid: #23272f;
+  /* Dark ramp: stepped for the dark surface, not an inverted flip */
+  --color-ramp-0:   #1e2c32;
+  --color-ramp-1:   #14453f;
+  --color-ramp-2:   #0c6259;
+  --color-ramp-3:   #068177;
+  --color-ramp-4:   #12a49c;
+  --color-ramp-5:   #56cec4;
 
-  --shadow-paper: 0 1px 0 rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4);
-  --shadow-lift:  0 1px 0 rgba(0,0,0,.5), 0 16px 32px -12px rgba(0,0,0,.7);
-
-  --color-card-blue: #14171c;
-  --color-card-blue-border: #23272f;
-  --color-card-blue-icon: #5b8bff;
-  --color-card-amber: #14171c;
-  --color-card-amber-border: #23272f;
-  --color-card-amber-icon: #fbbf24;
-  --color-card-emerald: #14171c;
-  --color-card-emerald-border: #23272f;
-  --color-card-emerald-icon: #2dd4bf;
-  --color-card-violet: #14171c;
-  --color-card-violet-border: #23272f;
-  --color-card-violet-icon: #b39bff;
-  --color-card-teal: #14171c;
-  --color-card-teal-border: #23272f;
-  --color-card-teal-icon: #ff7a4a;
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop:   0 12px 32px -8px rgb(0 0 0 / 0.7), 0 1px 2px rgb(0 0 0 / 0.5);
 }
 
-/* ----- Globals ----- */
+/* ── Globals ─────────────────────────────────────────────────────── */
+
+html { color-scheme: light; }
+.dark { color-scheme: dark; }
+
 html, body, #root {
-  background-color: var(--color-background);
-  color: var(--color-foreground);
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
 }
 
 body {
   font-family: var(--font-sans);
-  font-feature-settings: 'cv11','ss03','ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.005em;
-  background-image:
-    radial-gradient(1200px 600px at 110% -10%, color-mix(in oklab, var(--color-brand-primary) 8%, transparent), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, color-mix(in oklab, var(--color-brand-secondary) 6%, transparent), transparent 60%);
-  background-attachment: fixed;
-  transition: background-color .25s ease, color .25s ease;
+  font-feature-settings: 'ss01', 'cv01';
 }
 
-/* paper grain texture overlay (very subtle) */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    radial-gradient(circle at 20% 20%, rgba(0,0,0,0.012) 0.5px, transparent 1px),
-    radial-gradient(circle at 70% 60%, rgba(0,0,0,0.012) 0.5px, transparent 1px);
-  background-size: 7px 7px, 11px 11px;
-  opacity: .9;
-  mix-blend-mode: multiply;
+::selection { background: var(--color-s1); color: #fff; }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-2);
+  border-radius: 99px;
+  border: 3px solid var(--color-canvas);
 }
-.dark body::before {
-  background-image:
-    radial-gradient(circle at 20% 20%, rgba(255,255,255,0.025) 0.5px, transparent 1px),
-    radial-gradient(circle at 70% 60%, rgba(255,255,255,0.018) 0.5px, transparent 1px);
-  mix-blend-mode: screen;
-  opacity: .5;
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-3); }
+
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-s1);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-#root { position: relative; z-index: 1; }
+/* ── Type roles ──────────────────────────────────────────────────── */
 
-/* selection */
-::selection {
-  background: var(--color-brand-primary);
+/* Numerals and instrument labels. Martian Mono at a condensed width
+   reads like a meter face; tabular figures keep columns from jittering. */
+.readout {
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 78;
+  font-feature-settings: 'tnum', 'zero';
+  letter-spacing: -0.02em;
+}
+.readout-wide { font-variation-settings: 'wdth' 100; }
+
+.num {
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 85;
+  font-feature-settings: 'tnum', 'zero';
+  letter-spacing: -0.01em;
+}
+
+/* Small caps label — the tick-mark text of the instrument */
+.label {
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 85;
+  font-size: 10.5px;
+  line-height: 1.35;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-ink-3);
+}
+
+/* ── Panel primitive ─────────────────────────────────────────────── */
+
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-panel);
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* ── Controls ────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 6px;
+  border: 1px solid var(--color-line);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+}
+.btn:hover:not(:disabled) { background: var(--color-inset); border-color: var(--color-line-2); }
+.btn:disabled { opacity: .55; cursor: default; }
+
+.btn-primary {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-panel);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-s1);
+  border-color: var(--color-s1);
   color: #fff;
 }
 
-/* scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: var(--color-border-strong);
-  border-radius: 999px;
-  border: 2px solid var(--color-background);
+/* Segmented switch — used for chart views and theme */
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 7px;
+  border: 1px solid var(--color-line);
+  background: var(--color-inset);
 }
-::-webkit-scrollbar-thumb:hover { background: var(--color-muted-foreground); }
-
-/* ----- Typography helpers ----- */
-.font-display { font-family: var(--font-display); font-optical-sizing: auto; }
-.font-mono    { font-family: var(--font-mono); }
-.numeric      { font-family: var(--font-mono); font-feature-settings: 'tnum','zero'; letter-spacing: -0.02em; }
-
-/* ----- Card primitive ----- */
-.card {
-  background-color: var(--color-card);
-  color: var(--color-card-foreground);
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-  box-shadow: var(--shadow-paper);
+.seg > button {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 5px;
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 88;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+  transition: background-color .14s ease, color .14s ease;
 }
-
-.card-flat {
-  background-color: var(--color-card);
-  color: var(--color-card-foreground);
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
+.seg > button:hover { color: var(--color-ink); }
+.seg > button[data-on="true"] {
+  background: var(--color-panel);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-panel);
 }
 
-.surface {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-}
+/* ── Status chip — colour never travels alone ────────────────────── */
 
-/* legacy stat card classes — flatten */
-.stat-card-blue, .stat-card-amber, .stat-card-emerald, .stat-card-violet, .stat-card-teal {
-  background-color: var(--color-card);
-  border: 1px solid var(--color-border);
-}
-
-/* ----- Decorative rules: editorial dividers ----- */
-.rule-dotted {
-  height: 1px;
-  background-image: radial-gradient(circle, var(--color-border-strong) 1px, transparent 1px);
-  background-size: 6px 1px;
-  background-repeat: repeat-x;
-  background-position: 0 50%;
-}
-
-/* ----- Pill / tag ----- */
-.pill {
+.chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border-radius: 4px;
+  border: 1px solid var(--color-line);
+  background: var(--color-inset);
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 88;
+  font-size: 9.5px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  font-family: var(--font-mono);
-  border: 1px solid var(--color-border);
-  background: var(--color-muted);
-  color: var(--color-muted-foreground);
+  color: var(--color-ink-2);
+  white-space: nowrap;
 }
-.pill::before {
+.chip::before {
   content: '';
-  width: 6px; height: 6px;
-  border-radius: 999px;
+  width: 5px; height: 5px;
+  border-radius: 1px;
   background: currentColor;
-  opacity: .8;
 }
-.pill-success { color: var(--color-success); background: color-mix(in oklab, var(--color-success) 12%, transparent); border-color: color-mix(in oklab, var(--color-success) 30%, transparent); }
-.pill-warn    { color: var(--color-warning); background: color-mix(in oklab, var(--color-warning) 12%, transparent); border-color: color-mix(in oklab, var(--color-warning) 30%, transparent); }
-.pill-danger  { color: var(--color-danger);  background: color-mix(in oklab, var(--color-danger) 12%, transparent);  border-color: color-mix(in oklab, var(--color-danger) 30%, transparent); }
-.pill-info    { color: var(--color-info);    background: color-mix(in oklab, var(--color-info) 12%, transparent);    border-color: color-mix(in oklab, var(--color-info) 30%, transparent); }
+.chip-up   { color: var(--color-up);   border-color: color-mix(in oklab, var(--color-up) 35%, transparent);   background: color-mix(in oklab, var(--color-up) 10%, transparent); }
+.chip-warn { color: var(--color-warn); border-color: color-mix(in oklab, var(--color-warn) 35%, transparent); background: color-mix(in oklab, var(--color-warn) 10%, transparent); }
+.chip-down { color: var(--color-down); border-color: color-mix(in oklab, var(--color-down) 35%, transparent); background: color-mix(in oklab, var(--color-down) 10%, transparent); }
 
-/* live dot pulse */
-@keyframes live-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand-tertiary) 70%, transparent); }
-  50%      { box-shadow: 0 0 0 6px transparent; }
-}
-.live-dot {
-  width: 8px; height: 8px;
-  border-radius: 999px;
-  background: var(--color-brand-tertiary);
-  animation: live-pulse 1.6s ease-out infinite;
-}
+/* ── Link LED — real state, driven by the latest session ─────────── */
 
-/* ticker marquee */
-@keyframes ticker-slide {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+.led {
+  position: relative;
+  width: 7px; height: 7px;
+  border-radius: 99px;
+  background: currentColor;
+  flex: none;
 }
-.ticker-track {
-  animation: ticker-slide 60s linear infinite;
-  width: max-content;
+.led::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 99px;
+  border: 1px solid currentColor;
+  opacity: .35;
+  animation: led-breathe 2.4s ease-in-out infinite;
 }
-
-/* gentle reveal */
-@keyframes rise-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.rise-in { animation: rise-in .5s cubic-bezier(.2,.7,.2,1) both; }
-
-/* focus ring */
-:where(button, a, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-ring);
-  outline-offset: 2px;
-  border-radius: 8px;
+@keyframes led-breathe {
+  0%, 100% { transform: scale(1);   opacity: .35; }
+  50%      { transform: scale(1.5); opacity: 0; }
 }
 
-/* recharts text inherits */
-.recharts-text { font-family: var(--font-mono); font-size: 11px; }
+/* ── Motion ──────────────────────────────────────────────────────── */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.enter { animation: fade-up .34s cubic-bezier(.22,.68,.28,1) both; }
+
+@keyframes ribbon-rise {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+@keyframes sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-inset);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-line) 70%, transparent), transparent);
+  animation: sweep 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ── Recharts overrides ──────────────────────────────────────────── */
+
+.recharts-text {
+  font-family: var(--font-display);
+  font-variation-settings: 'wdth' 88;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+}
+.recharts-surface { overflow: visible; }
+.recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line { stroke: var(--color-line); }

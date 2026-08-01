@@ -3,32 +3,14 @@ import Dashboard from './components/Dashboard';
 import { useExcitelData } from './hooks/useExcitelData';
 
 function App() {
-  const {
-    stats,
-    sessions,
-    months,
-    selectedMonth,
-    sessionChartData,
-    dailyUsageData,
-    loading,
-    error,
-    changeMonth,
-    refresh,
-  } = useExcitelData();
+  const data = useExcitelData();
 
   return (
     <ThemeProvider defaultTheme="system" storageKey="excitel-theme">
       <Dashboard
-        stats={stats}
-        sessions={sessions}
-        months={months}
-        selectedMonth={selectedMonth}
-        sessionChartData={sessionChartData}
-        dailyUsageData={dailyUsageData}
-        loading={loading}
-        error={error}
-        onMonthChange={changeMonth}
-        onRefresh={refresh}
+        {...data}
+        onMonthChange={data.changeMonth}
+        onRefresh={data.refresh}
       />
     </ThemeProvider>
   );

@@ -1,45 +1,61 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { fetchUsageData, triggerSync } from '../services/api';
 import {
-  aggregateSessionsByDay,
-  calculateStats,
-  processSessionsForChart,
-} from '../utils/formatters';
+  addressPool,
+  buildDays,
+  findOutages,
+  linkState,
+  monthlyTotals,
+  normalizeSessions,
+  summarize,
+  terminationBreakdown,
+  weekdayProfile,
+} from '../utils/analytics';
 
 export function useExcitelData() {
-  const [data, setData] = useState(null);
-  const [sessions, setSessions] = useState([]);
+  const [rawSessions, setRawSessions] = useState([]);
   const [months, setMonths] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [sessionChartData, setSessionChartData] = useState([]);
-  const [dailyUsageData, setDailyUsageData] = useState([]);
+  const [archive, setArchive] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
-  const isInitialized = useRef(false);
+  const hasFallenBack = useRef(false);
 
   const fetchData = useCallback(async (monthId) => {
+    setLoading(true);
+    setError(null);
+
+    let nextMonthId = monthId;
+
     try {
-      setLoading(true);
-      setError(null);
+      // A billing month that has only just started carries no sessions yet.
+      // On first load, fall back to the most recent month that has records
+      // rather than landing the user on an empty page.
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const result = await fetchUsageData(nextMonthId);
+        if (!result.success) throw new Error(result.error || 'Failed to fetch data');
 
-      const result = await fetchUsageData(monthId);
+        const sessions = result.result.sessions || [];
+        const monthList = result.result.months || [];
 
-      if (result.success) {
-        setData(result);
-        setSessions(result.result.sessions || []);
-        setMonths(result.result.months || []);
-        setStats(calculateStats(result.result.sessions));
-        setSessionChartData(processSessionsForChart(result.result.sessions));
-        setDailyUsageData(aggregateSessionsByDay(result.result.sessions));
+        const index = monthList.findIndex((m) => m.id === nextMonthId);
+        const previous = monthList[index + 1];
+        const shouldFallBack =
+          !hasFallenBack.current && sessions.length === 0 && index !== -1 && previous;
 
-        if (!isInitialized.current && result.result.months?.length > 0) {
-          const currentMonth = result.result.months.find(m => m.current) || result.result.months[0];
-          setSelectedMonth(currentMonth.id);
-          isInitialized.current = true;
+        if (shouldFallBack) {
+          hasFallenBack.current = true;
+          nextMonthId = previous.id;
+          continue;
         }
-      } else {
-        throw new Error(result.error || 'Failed to fetch data');
+
+        setRawSessions(sessions);
+        setMonths(monthList);
+        setSelectedMonth(nextMonthId);
+        setLastUpdated(new Date());
+        break;
       }
     } catch (err) {
       setError(err.message);
@@ -48,57 +64,84 @@ export function useExcitelData() {
     }
   }, []);
 
-  const initialize = useCallback(async () => {
+  // The archive backs the month-over-month strip. It is fetched once and is
+  // allowed to fail quietly — the rest of the page does not depend on it.
+  const fetchArchive = useCallback(async () => {
     try {
-      setLoading(true);
-      const now = new Date();
-      const currentMonthId = `${now.getMonth() + 1}-${now.getFullYear()}`;
-      await fetchData(currentMonthId);
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
+      const result = await fetchUsageData('all');
+      if (result.success) setArchive(result.result.sessions || []);
+    } catch {
+      setArchive([]);
     }
-  }, [fetchData]);
+  }, []);
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    const now = new Date();
+    fetchData(`${now.getMonth() + 1}-${now.getFullYear()}`);
+    fetchArchive();
+  }, [fetchData, fetchArchive]);
 
-  const changeMonth = useCallback((monthId) => {
-    setSelectedMonth(monthId);
-    fetchData(monthId);
-  }, [fetchData]);
+  const changeMonth = useCallback(
+    (monthId) => {
+      setSelectedMonth(monthId);
+      fetchData(monthId);
+    },
+    [fetchData]
+  );
 
   const refresh = useCallback(async () => {
-    if (selectedMonth) {
-      try {
-        setLoading(true);
-        setError(null);
+    if (!selectedMonth) return;
+    setSyncing(true);
+    setError(null);
 
-        // "all" is not a real month - skip sync for it
-        if (selectedMonth !== 'all') {
-          // First, trigger sync from Excitel API
-          await triggerSync(selectedMonth);
-        }
-
-        // Then fetch the updated data from database
-        await fetchData(selectedMonth);
-      } catch (err) {
-        setError(err.message);
-        setLoading(false);
-      }
+    try {
+      // "all" is a view, not a billing period — there is nothing to sync.
+      if (selectedMonth !== 'all') await triggerSync(selectedMonth);
+      await fetchData(selectedMonth);
+      await fetchArchive();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
     }
-  }, [selectedMonth, fetchData]);
+  }, [selectedMonth, fetchData, fetchArchive]);
+
+  const analytics = useMemo(() => {
+    const rows = normalizeSessions(rawSessions);
+    const days = buildDays(rows);
+    const outages = findOutages(rows);
+
+    return {
+      rows,
+      days,
+      outages,
+      stats: summarize(rows, days, outages),
+      weekdays: weekdayProfile(days),
+      causes: terminationBreakdown(rows),
+      pool: addressPool(rows),
+      link: linkState(rows),
+    };
+  }, [rawSessions]);
+
+  const history = useMemo(
+    () => monthlyTotals(normalizeSessions(archive)),
+    [archive]
+  );
+
+  const selectedMonthTitle = useMemo(
+    () => months.find((m) => m.id === selectedMonth)?.title ?? null,
+    [months, selectedMonth]
+  );
 
   return {
-    data,
-    sessions,
+    ...analytics,
+    history,
     months,
     selectedMonth,
-    stats,
-    sessionChartData,
-    dailyUsageData,
+    selectedMonthTitle,
     loading,
+    syncing,
+    lastUpdated,
     error,
     changeMonth,
     refresh,
