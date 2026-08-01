@@ -6,12 +6,12 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-excitel}
       POSTGRES_USER: ${POSTGRES_USER:-excitel}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before starting the stack}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-excitel} -d ${POSTGRES_DB:-excitel}"]
       interval: 10s
@@ -31,11 +31,12 @@ services:
       EXCITEL_USERNAME: ${EXCITEL_USERNAME}
       EXCITEL_PASSWORD: ${EXCITEL_PASSWORD}
       SELFCARE_COOKIE: ${SELFCARE_COOKIE:-}
+      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}"
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     healthcheck:
       test:
         [
@@ -59,7 +60,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3080:80"
+      - "127.0.0.1:3080:80"
 
   worker:
     build:

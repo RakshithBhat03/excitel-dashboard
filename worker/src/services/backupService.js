@@ -6,6 +6,7 @@ const BACKUP_DIR = process.env.BACKUP_DIR || '/app/backups';
 const RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 30);
 const FILE_PREFIX = 'excitel_';
 const FILE_EXT = '.dump';
+const BACKUP_FILENAME_PATTERN = /^excitel_\d{4}-\d{2}-\d{2}_\d{6}\.dump$/;
 
 function ensureBackupDir() {
   if (!existsSync(BACKUP_DIR)) {
@@ -81,6 +82,10 @@ export function rotateBackups() {
 export async function restoreBackup(filename) {
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set; cannot restore backup');
+  }
+
+  if (typeof filename !== 'string' || !BACKUP_FILENAME_PATTERN.test(filename)) {
+    throw new Error('Invalid backup filename');
   }
 
   const filepath = join(BACKUP_DIR, filename);

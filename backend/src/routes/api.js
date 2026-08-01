@@ -3,6 +3,11 @@ import { pool } from '../config/database.js';
 import { syncMonth } from '../services/syncService.js';
 
 const router = Router();
+const MONTH_ID_PATTERN = /^(0?[1-9]|1[0-2])-\d{4}$/;
+
+function isValidMonthId(monthId) {
+  return monthId === 'all' || MONTH_ID_PATTERN.test(monthId);
+}
 
 // GET /api/months - Get all available months
 router.get('/months', async (req, res) => {
@@ -26,11 +31,15 @@ router.get('/sessions/:monthId', async (req, res) => {
   try {
     const { monthId } = req.params;
 
+    if (!isValidMonthId(monthId)) {
+      return res.status(400).json({ success: false, error: 'Invalid month ID format' });
+    }
+
     if (monthId !== 'all') {
       const [monthNum, year] = monthId.split('-');
       const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                          'July', 'August', 'September', 'October', 'November', 'December'];
-      const monthTitle = `${monthNames[parseInt(monthNum) - 1]} ${year}`;
+      const monthTitle = `${monthNames[parseInt(monthNum, 10) - 1]} ${year}`;
 
       await pool.query(`
         INSERT INTO months (id, title, is_current)
@@ -109,7 +118,7 @@ router.post('/sync/:monthId', async (req, res) => {
     const { monthId } = req.params;
 
     // Validate monthId format (M-YYYY or MM-YYYY)
-    if (monthId !== 'all' && !/^\d{1,2}-\d{4}$/.test(monthId)) {
+    if (!isValidMonthId(monthId)) {
       return res.status(400).json({ success: false, error: 'Invalid month ID format' });
     }
 
@@ -134,7 +143,7 @@ router.post('/sync/:monthId', async (req, res) => {
         }
       });
     } else {
-      res.status(500).json({ success: false, error: result.error });
+      res.status(502).json({ success: false, error: 'Failed to sync data from Excitel' });
     }
   } catch (error) {
     console.error('Error triggering sync:', error);

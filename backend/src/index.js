@@ -7,12 +7,30 @@ import apiRoutes from './routes/api.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 // Middleware
+app.disable('x-powered-by');
 app.use(helmet());
 app.use(compression());
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(null, false);
+  },
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
+app.use(express.json({ limit: '100kb' }));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -26,6 +44,18 @@ app.get('/health', async (req, res) => {
 
 // API routes
 app.use('/api', apiRoutes);
+
+// Keep framework details and internal errors out of public responses.
+app.use((_req, res) => {
+  res.status(404).json({ success: false, error: 'Not found' });
+});
+
+app.use((error, _req, res, _next) => {
+  void _next;
+  const message = error instanceof Error ? error.message : 'Unknown server error';
+  console.error('Unhandled server error:', message);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
 
 // Start server
 async function start() {

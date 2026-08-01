@@ -23,6 +23,19 @@ coverage
 .env.test.local
 .env.production.local
 
+# Local credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Local database and backup artifacts
+backups/
+*.dump
+*.dump.gz
+*.backup
+
 # Tooling metadata
 AGENTS.md
 CLAUDE.md
