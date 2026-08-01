@@ -16,17 +16,20 @@ This is an independent, unofficial project. It is designed for local or private 
 
 ## Stack
 
+- Language: TypeScript with strict checking across every package
 - Frontend: React 19, Vite 7, Tailwind CSS 4, Recharts
-- Backend: Express, Helmet, PostgreSQL client
-- Worker: Bun, node-cron, PostgreSQL client
+- Backend: Express, Helmet, PostgreSQL client, executed directly by Bun
+- Worker: Bun, node-cron, PostgreSQL client, executed directly by Bun
 - Infrastructure: Docker Compose, Nginx, PostgreSQL 16
 
 ## Repository layout
 
 ```text
 src/                  React UI, hooks, utilities, and API client
+shared/               Shared TypeScript API and upstream contracts
 backend/src/          Express routes, database access, and sync service
-worker/src/            Scheduled sync and database backup worker
+worker/src/           Scheduled sync and database backup worker
+scripts/theme-init.ts TypeScript source for the generated pre-paint theme script
 database/init.sql     PostgreSQL schema bootstrap
 docker/                Frontend, backend, worker, and Nginx configuration
 docker-compose.yml     Local full-stack orchestration
@@ -113,7 +116,7 @@ bun install
 bun run dev
 ```
 
-The Vite development proxy intentionally targets the live Excitel API by default; see `vite.config.js`. To point the browser at a locally running backend instead, start the backend and run:
+The Vite development proxy intentionally targets the live Excitel API by default; see `vite.config.ts`. To point the browser at a locally running backend instead, start the backend and run:
 
 ```bash
 VITE_API_BASE_URL=http://localhost:3000/api bun run dev
@@ -137,7 +140,7 @@ bun install
 DATABASE_URL='postgres://excitel:your_secure_password_here@127.0.0.1:5432/excitel' bun --env-file=../.env run dev
 ```
 
-The backend listens on port `3000` by default.
+The backend executes `backend/src/index.ts` directly and listens on port `3000` by default.
 
 ### Worker
 
@@ -148,6 +151,8 @@ cd worker
 bun install
 DATABASE_URL='postgres://excitel:your_secure_password_here@127.0.0.1:5432/excitel' bun --env-file=../.env run start
 ```
+
+The worker executes `worker/src/index.ts` directly. Backend and worker implementations remain separate; only their shared HTTP and upstream contracts live in `shared/contracts.ts`.
 
 ## API
 
@@ -183,12 +188,17 @@ Run these from the repository root:
 
 ```bash
 bun install
+bun run typecheck:all
 bun run lint
 bun test
 bun run build
 ```
 
-The backend and worker each have their own `package.json` and `bun.lock`; run `bun install` in those directories when working on them directly. There is no package workspace that hoists dependencies.
+The frontend/root tooling, backend, and worker each have their own `package.json` and `bun.lock`; run `bun install` independently in the repository root, `backend/`, and `worker/`. There is no package workspace that hoists dependencies. `bun run typecheck` checks browser code and root tooling, while `bun run typecheck:all` also checks the backend and worker.
+
+`scripts/theme-init.ts` is bundled by Bun into the ignored `public/theme-init.js` before both `bun run dev` and `bun run build`. The generated file remains a synchronous classic script so the saved light/dark/system preference is applied before the first paint without inline JavaScript.
+
+The Docker Compose build is the final integration path: backend and worker use repository-root build contexts so their validation stages can type-check the shared contracts before the production images retain only runtime dependencies.
 
 ## Privacy and public-repository safety
 

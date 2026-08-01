@@ -4,11 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "bun run theme:init && vite",
+    "build": "bun run theme:init && bun run typecheck && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "bun test"
+    "test": "bun test",
+    "theme:init": "bun build scripts/theme-init.ts --outfile public/theme-init.js --target browser --format iife --minify",
+    "typecheck": "tsc -p tsconfig.frontend.json && tsc -p tsconfig.tooling.json",
+    "typecheck:backend": "cd backend && bun run typecheck",
+    "typecheck:worker": "cd worker && bun run typecheck",
+    "typecheck:all": "bun run typecheck && bun run typecheck:backend && bun run typecheck:worker"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -32,6 +37,10 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "vite": "^7.2.4"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vite": "^7.2.4",
+    "@types/node": "^24.10.1",
+    "bun-types": "^1.3.5"
   }
 }
