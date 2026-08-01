@@ -1,120 +1,85 @@
 import {
   addDays,
-  differenceInMinutes,
   format,
   isValid,
   parseISO,
   startOfDay,
 } from 'date-fns';
 
-export function formatBytes(mb, decimals = 2) {
-  if (mb === 0) return '0 MB';
+/* ── Presentation ────────────────────────────────────────────────── */
 
-  const gb = mb / 1024;
-  if (gb >= 1) {
-    return `${gb.toFixed(decimals)} GB`;
+/** Volume, given gigabytes. Rolls up to TB so month totals stay readable. */
+export function formatGb(gb, decimals) {
+  const value = Number(gb) || 0;
+  if (value >= 1024) {
+    return { value: (value / 1024).toFixed(decimals ?? 2), unit: 'TB' };
   }
-  return `${mb.toFixed(decimals)} MB`;
+  if (value >= 1) {
+    return { value: value.toFixed(decimals ?? (value >= 100 ? 1 : 2)), unit: 'GB' };
+  }
+  return { value: (value * 1024).toFixed(decimals ?? 0), unit: 'MB' };
 }
 
-export function formatDuration(minutes) {
-  const hours = minutes / 60;
-  const days = hours / 24;
-
-  if (days >= 1) {
-    return `${days.toFixed(1)} days`;
-  }
-  if (hours >= 1) {
-    return `${hours.toFixed(1)} hrs`;
-  }
-  return `${minutes.toFixed(0)} min`;
+export function formatGbText(gb, decimals) {
+  const { value, unit } = formatGb(gb, decimals);
+  return `${value} ${unit}`;
 }
 
-export function formatDate(dateString) {
-  try {
-    return format(parseISO(dateString), 'MMM dd, HH:mm');
-  } catch {
-    return dateString;
-  }
+/** Duration, given minutes. */
+export function formatMinutes(minutes) {
+  const m = Math.max(0, Number(minutes) || 0);
+  if (m < 1) return { value: Math.round(m * 60).toString(), unit: 'sec' };
+  if (m < 60) return { value: m.toFixed(0), unit: 'min' };
+  const hours = m / 60;
+  if (hours < 48) return { value: hours.toFixed(1), unit: 'hrs' };
+  return { value: (hours / 24).toFixed(1), unit: 'days' };
 }
 
-export function formatFullDate(dateString) {
-  try {
-    // Dates from Excitel API are already in IST
-    return format(parseISO(dateString), 'MMM dd, yyyy HH:mm') + ' IST';
-  } catch {
-    return dateString;
-  }
+export function formatMinutesText(minutes) {
+  const { value, unit } = formatMinutes(minutes);
+  return `${value} ${unit}`;
 }
 
-export function calculateStats(sessions) {
-  if (!sessions || sessions.length === 0) {
-    return {
-      totalUsage: 0,
-      totalTime: 0,
-      avgDaily: 0,
-      sessionCount: 0,
-      uptimePercent: 0,
-    };
-  }
-
-  const total = sessions.reduce(
-    (acc, curr) => ({
-      usageTime: Number(curr.usageTime) + Number(acc.usageTime),
-      usageVolume: Number(acc.usageVolume) + Number(curr.usageVolume),
-    }),
-    { usageTime: 0, usageVolume: 0 }
-  );
-
-  const totalTimeHours = total.usageTime / 60;
-  const totalDays = totalTimeHours / 24;
-  const totalUsageGB = total.usageVolume / 1024;
-  const avgDayGB = totalDays > 0 ? totalUsageGB / totalDays : 0;
-
-  // Calculate uptime based on total connected time vs total elapsed time
-  // Sessions are ordered newest first, so first session is at the end of array
-  const firstSession = sessions[sessions.length - 1];
-  const lastSession = sessions[0];
-
-  let uptimePercent = 0;
-  if (firstSession && lastSession) {
-    try {
-      const startDate = parseISO(firstSession.sessionStartDate);
-      const endDate = parseISO(lastSession.sessionEndDate);
-      // Calculate total period in minutes for precision
-      const totalPeriodMinutes = differenceInMinutes(endDate, startDate);
-      // total.usageTime is already in minutes (sum of all session durations)
-      if (totalPeriodMinutes > 0) {
-        uptimePercent = Math.min(100, (total.usageTime / totalPeriodMinutes) * 100);
-      }
-    } catch {
-      uptimePercent = 0;
-    }
-  }
-
-  return {
-    totalUsage: totalUsageGB,
-    totalTime: totalTimeHours,
-    avgDaily: avgDayGB,
-    sessionCount: sessions.length,
-    uptimePercent,
-  };
+/** Compact duration for dense table cells: 1d 4h, 23h 59m, 7m. */
+export function formatCompactMinutes(minutes) {
+  const total = Math.round(Math.max(0, Number(minutes) || 0));
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${String(mins).padStart(2, '0')}m`;
+  return `${mins}m`;
 }
 
-export function processSessionsForChart(sessions) {
-  if (!sessions || sessions.length === 0) return [];
-
-  return sessions
-    .slice()
-    .reverse()
-    .map((session, index) => ({
-      name: `Session ${index + 1}`,
-      date: formatDate(session.sessionStartDate),
-      usage: Number(session.usageVolume) / 1024,
-      duration: Number(session.usageTime) / 60,
-      fullDate: session.sessionStartDate,
-    }));
+/** Timestamps arrive already in IST from the Excitel API. */
+export function formatStamp(date) {
+  const d = date instanceof Date ? date : parseISO(date);
+  return isValid(d) ? format(d, 'dd MMM · HH:mm') : '—';
 }
+
+export function formatClock(date) {
+  const d = date instanceof Date ? date : parseISO(date);
+  return isValid(d) ? format(d, 'HH:mm') : '—';
+}
+
+export function formatDay(date) {
+  const d = date instanceof Date ? date : parseISO(date);
+  return isValid(d) ? format(d, 'EEE, dd MMM yyyy') : '—';
+}
+
+/** Minute offset within a day → 04:16. Used by the timeline tooltip. */
+export function minuteOfDayToClock(minute) {
+  const m = Math.max(0, Math.min(1440, Math.round(minute)));
+  const h = Math.floor(m / 60);
+  return `${String(h).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+export function signedPercent(value, decimals = 1) {
+  const n = Number(value) || 0;
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(decimals)}%`;
+}
+
+/* ── Daily aggregation ───────────────────────────────────────────── */
 
 function splitSessionByDay(session) {
   const startDate = parseISO(session.sessionStartDate);
@@ -185,17 +150,4 @@ export function aggregateSessionsByDay(sessions) {
   });
 
   return Array.from(dailyTotals.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-}
-
-export function getTerminationColor(cause) {
-  switch (cause) {
-    case 'User Request':
-      return 'text-emerald-600 dark:text-emerald-400';
-    case 'Session Timeout':
-      return 'text-sky-600 dark:text-sky-400';
-    case 'Lost Carrier':
-      return 'text-amber-600 dark:text-amber-400';
-    default:
-      return 'text-zinc-500 dark:text-zinc-400';
-  }
 }
