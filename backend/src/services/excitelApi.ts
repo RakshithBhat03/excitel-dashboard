@@ -3,10 +3,17 @@ import type {
   UpstreamExcitelResponse,
   UpstreamLoginResponse,
 } from '../../../shared/contracts';
+import { readJsonWithLimit } from '../../../shared/limitedJson';
 
 const BASE_URL = 'https://selfcare.north.excitel.in/api/index_dev.php';
+const MAX_UPSTREAM_RESPONSE_BYTES = readPositiveInt('MAX_UPSTREAM_RESPONSE_BYTES', 10 * 1024 * 1024);
 
 let selfcareCookie: string | null = process.env.SELFCARE_COOKIE || null;
+
+function readPositiveInt(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
 
 export async function login(): Promise<UpstreamLoginResponse | undefined> {
   if (process.env.SELFCARE_COOKIE) return undefined;
@@ -31,11 +38,9 @@ export async function login(): Promise<UpstreamLoginResponse | undefined> {
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
-
     if (!response.ok) throw new Error(`Login failed: ${response.status}`);
 
-    const data = (await response.json()) as UpstreamLoginResponse;
+    const data = await readJsonWithLimit<UpstreamLoginResponse>(response, MAX_UPSTREAM_RESPONSE_BYTES);
     const cookies = response.headers.get('set-cookie');
     if (cookies) {
       const match = cookies.match(/selfcare=([^;]+)/);
@@ -44,13 +49,15 @@ export async function login(): Promise<UpstreamLoginResponse | undefined> {
 
     if (!selfcareCookie) throw new Error('No selfcare cookie received from login');
     return data;
-  } catch (error: unknown) {
+  } finally {
     clearTimeout(timeout);
-    throw error;
   }
 }
 
-export async function fetchUsageData(monthId: BillingMonthId): Promise<UpstreamExcitelResponse> {
+export async function fetchUsageData(
+  monthId: BillingMonthId,
+  allowRetry = true,
+): Promise<UpstreamExcitelResponse> {
   if (!selfcareCookie) await login();
 
   const controller = new AbortController();
@@ -71,20 +78,18 @@ export async function fetchUsageData(monthId: BillingMonthId): Promise<UpstreamE
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
-
     if (!response.ok) {
       if (response.status === 401) {
+        if (!allowRetry) throw new Error('Excitel session expired after retry');
         selfcareCookie = null;
         await login();
-        return fetchUsageData(monthId);
+        return fetchUsageData(monthId, false);
       }
       throw new Error(`Failed to fetch usage data: ${response.status}`);
     }
 
-    return (await response.json()) as UpstreamExcitelResponse;
-  } catch (error: unknown) {
+    return await readJsonWithLimit<UpstreamExcitelResponse>(response, MAX_UPSTREAM_RESPONSE_BYTES);
+  } finally {
     clearTimeout(timeout);
-    throw error;
   }
 }

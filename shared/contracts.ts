@@ -99,9 +99,11 @@ export interface SyncResponsePayload {
   sessionCount: number;
 }
 
+export type SyncFailureReason = 'failed' | 'in-progress';
+
 export type SyncResult =
   | { success: true; sessionCount: number }
-  | { success: false; error: string };
+  | { success: false; error: string; reason?: SyncFailureReason };
 
 export type WorkerSyncResult = SyncResult;
 
