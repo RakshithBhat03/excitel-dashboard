@@ -32,4 +32,8 @@ RUN bun install --frozen-lockfile --production
 COPY --chown=bun:bun shared /app/shared
 COPY --chown=bun:bun worker/src ./src
 
+RUN mkdir -p /app/backups && chown bun:bun /app/backups
+
+USER bun
+
 CMD ["bun", "run", "src/index.ts"]
