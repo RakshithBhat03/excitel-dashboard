@@ -14,6 +14,14 @@ This is an independent, unofficial project. It is designed for local or private 
 - PostgreSQL-backed history with rotating local backups
 - Docker Compose deployment behind Nginx
 
+## Note on session granularity
+
+The per-session (device split) breakdown of usage data is only possible if you set your router to restart every 24 hours.
+
+When the router restarts, the ISP — Excitel in this case — automatically terminates the current session and a new one starts. Each stored session therefore covers roughly a 24-hour window, which is what makes the daily and per-session figures in the dashboard meaningful.
+
+Without a scheduled restart, a single session can stay open for days or weeks, and the dashboard will show one long session instead of a usable day-by-day split. Most routers expose this as a scheduled reboot or auto-restart setting in their admin interface. Set it for a time when the connection is idle, such as early morning.
+
 ## Stack
 
 - Language: TypeScript with strict checking across every package
