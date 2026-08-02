@@ -9,6 +9,78 @@ import { pool } from '../config/database';
 import { getErrorMessage } from '../utils/errors';
 import { fetchUsageData, login } from './excitelApi';
 
+const MAX_SESSIONS_PER_SYNC = readPositiveInt('MAX_SESSIONS_PER_SYNC', 20_000);
+const MAX_MONTHS_PER_RESPONSE = readPositiveInt('MAX_MONTHS_PER_RESPONSE', 120);
+const MONTH_ID_PATTERN = /^(0?[1-9]|1[0-2])-(\d{4})$/;
+const MIN_SUPPORTED_YEAR = 2000;
+let syncInProgress = false;
+
+function readPositiveInt(name: string, fallback: number): number {
+  const value = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeMonthId(monthId: string): BillingMonthId | null {
+  const match = MONTH_ID_PATTERN.exec(monthId);
+  const month = Number.parseInt(match?.[1] ?? '', 10);
+  const year = Number.parseInt(match?.[2] ?? '', 10);
+  const maxSupportedYear = new Date().getFullYear() + 1;
+
+  if (
+    !match ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    year < MIN_SUPPORTED_YEAR ||
+    year > maxSupportedYear
+  ) {
+    return null;
+  }
+
+  return `${month}-${year}`;
+}
+
+function assertBoundedResponse(
+  months: UpstreamMonth[] | undefined,
+  sessions: RawExcitelSession[] | undefined,
+): void {
+  if (months !== undefined && !Array.isArray(months)) {
+    throw new Error('Excitel API returned an invalid month list');
+  }
+  if (sessions !== undefined && !Array.isArray(sessions)) {
+    throw new Error('Excitel API returned an invalid session list');
+  }
+  if ((months?.length ?? 0) > MAX_MONTHS_PER_RESPONSE) {
+    throw new Error('Excitel API returned too many months');
+  }
+  if ((sessions?.length ?? 0) > MAX_SESSIONS_PER_SYNC) {
+    throw new Error('Excitel API returned too many sessions');
+  }
+}
+
+function assertSessionIsSafe(session: RawExcitelSession, index: number): void {
+  if (!session || typeof session.sessionId !== 'string' || session.sessionId.length === 0) {
+    throw new Error(`Excitel API returned an invalid session at index ${index}`);
+  }
+  if (session.sessionId.length > 100) {
+    throw new Error(`Excitel API returned an oversized session ID at index ${index}`);
+  }
+  if (session.ipAddress !== null && (typeof session.ipAddress !== 'string' || session.ipAddress.length > 100)) {
+    throw new Error(`Excitel API returned an invalid IP address at index ${index}`);
+  }
+  if (
+    session.terminationCause !== null &&
+    (typeof session.terminationCause !== 'string' || session.terminationCause.length > 50)
+  ) {
+    throw new Error(`Excitel API returned an invalid termination cause at index ${index}`);
+  }
+
+  const usageTime = Number.parseInt(String(session.usageTime), 10);
+  const usageVolume = Number.parseFloat(String(session.usageVolume));
+  if (!Number.isSafeInteger(usageTime) || !Number.isFinite(usageVolume)) {
+    throw new Error(`Excitel API returned invalid usage values at index ${index}`);
+  }
+}
+
 function getCurrentMonthId(): BillingMonthId {
   const now = new Date();
   const month = String(now.getMonth() + 1);
@@ -17,6 +89,11 @@ function getCurrentMonthId(): BillingMonthId {
 }
 
 export async function syncCurrentMonth(): Promise<WorkerSyncResult> {
+  if (syncInProgress) {
+    return { success: false, error: 'A scheduled sync is already in progress', reason: 'in-progress' };
+  }
+
+  syncInProgress = true;
   const currentMonthId = getCurrentMonthId();
   console.log(`Syncing current month: ${currentMonthId}`);
 
@@ -25,8 +102,10 @@ export async function syncCurrentMonth(): Promise<WorkerSyncResult> {
     const data = await fetchUsageData(currentMonthId);
     if (!data.success) throw new Error(data.status?.message || 'API returned unsuccessful response');
 
-    if (data.result?.months) await syncMonths(data.result.months);
+    const months = data.result?.months;
     const sessions = data.result?.sessions ?? [];
+    assertBoundedResponse(months, sessions);
+    if (months) await syncMonths(months);
     await syncSessions(currentMonthId, sessions);
     await updateSyncMetadata(currentMonthId, sessions.length, 'success');
 
@@ -37,6 +116,8 @@ export async function syncCurrentMonth(): Promise<WorkerSyncResult> {
     console.error(`Sync failed for ${currentMonthId}:`, message);
     await updateSyncMetadata(currentMonthId, 0, 'failed', message);
     return { success: false, error: message };
+  } finally {
+    syncInProgress = false;
   }
 }
 
@@ -44,6 +125,12 @@ async function syncMonths(months: UpstreamMonth[]): Promise<void> {
   const currentMonthId = getCurrentMonthId();
 
   for (const month of months) {
+    if (typeof month.id !== 'string' || typeof month.title !== 'string' || month.title.length > 100) {
+      throw new Error('Excitel API returned an invalid month');
+    }
+    const normalizedMonthId = normalizeMonthId(month.id);
+    if (!normalizedMonthId) throw new Error('Excitel API returned an unsupported month');
+
     await pool.query(
       `
       INSERT INTO months (id, title, is_current)
@@ -52,7 +139,7 @@ async function syncMonths(months: UpstreamMonth[]): Promise<void> {
         title = EXCLUDED.title,
         is_current = EXCLUDED.is_current
     `,
-      [month.id, month.title, month.id === currentMonthId],
+      [normalizedMonthId, month.title, normalizedMonthId === currentMonthId],
     );
   }
 
@@ -66,7 +153,12 @@ async function syncMonths(months: UpstreamMonth[]): Promise<void> {
 }
 
 async function syncSessions(monthId: BillingMonthId, sessions: RawExcitelSession[]): Promise<void> {
-  for (const session of sessions) {
+  if (!Array.isArray(sessions) || sessions.length > MAX_SESSIONS_PER_SYNC) {
+    throw new Error('Excitel API returned too many sessions');
+  }
+
+  for (const [index, session] of sessions.entries()) {
+    assertSessionIsSafe(session, index);
     await pool.query(
       `
       INSERT INTO sessions (
@@ -115,6 +207,11 @@ async function updateSyncMetadata(
 }
 
 export async function syncAllMonths(): Promise<WorkerSyncResult> {
+  if (syncInProgress) {
+    return { success: false, error: 'A scheduled sync is already in progress', reason: 'in-progress' };
+  }
+
+  syncInProgress = true;
   try {
     await login();
     const currentMonthId = getCurrentMonthId();
@@ -122,10 +219,14 @@ export async function syncAllMonths(): Promise<WorkerSyncResult> {
 
     if (!data.success) throw new Error(data.status?.message || 'API returned unsuccessful response');
 
+    const months = data.result?.months ?? [];
+    assertBoundedResponse(months, data.result?.sessions);
+
     let sessionCount = 0;
-    for (const month of data.result?.months ?? []) {
+    for (const month of months) {
       console.log(`Syncing month: ${month.id}`);
       const monthData = await fetchUsageData(month.id);
+      assertBoundedResponse(monthData.result?.months, monthData.result?.sessions);
       if (monthData.success && monthData.result?.sessions) {
         if (monthData.result.months) await syncMonths(monthData.result.months);
         await syncSessions(month.id, monthData.result.sessions);
@@ -144,5 +245,7 @@ export async function syncAllMonths(): Promise<WorkerSyncResult> {
     const message = getErrorMessage(error);
     console.error('Failed to sync all months:', message);
     return { success: false, error: message };
+  } finally {
+    syncInProgress = false;
   }
 }

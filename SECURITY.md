@@ -1,6 +1,6 @@
 # Security policy
 
-Excitel Dashboard is intended for local or private use. It has no built-in user authentication for the local API, so do not expose the backend or database directly to the public internet.
+Excitel Dashboard is intended for local or private use. The local Compose default keeps API authentication disabled because ports are bound to loopback. Before exposing the dashboard beyond the trusted host, set `API_AUTH_REQUIRED=true` with server-only Basic Auth credentials, use TLS at the deployment boundary, and restrict network access. Never treat CORS as authentication.
 
 Please do not open a public issue containing:
 
