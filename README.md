@@ -98,6 +98,14 @@ docker compose down
 | `EXCITEL_PASSWORD` | Excitel login password; not needed when using `SELFCARE_COOKIE` |
 | `SELFCARE_COOKIE` | Optional current self-care cookie; treat it like a password |
 | `CORS_ORIGIN` | Comma-separated origins allowed for direct frontend development |
+| `API_AUTH_REQUIRED` | Set to `true` to require Basic Auth on every `/api` route |
+| `API_AUTH_USERNAME` | Server-only Basic Auth username; never use a `VITE_*` variable |
+| `API_AUTH_PASSWORD` | Server-only Basic Auth password; use a long random value |
+| `API_RATE_LIMIT_MAX` / `API_RATE_LIMIT_WINDOW_MS` | Read API request limit |
+| `SYNC_RATE_LIMIT_MAX` / `SYNC_RATE_LIMIT_WINDOW_MS` | Manual sync request limit |
+| `MAX_UPSTREAM_RESPONSE_BYTES` | Maximum upstream JSON response size |
+| `MAX_SESSIONS_PER_SYNC` | Maximum sessions accepted from one upstream response |
+| `MAX_MONTHS_PER_RESPONSE` | Maximum months accepted from one upstream response |
 | `SYNC_CRON_SCHEDULE` | Worker sync schedule; default is every two hours |
 | `BACKUP_CRON_SCHEDULE` | Backup schedule; default is 2:00 AM UTC daily |
 | `BACKUP_RETENTION_DAYS` | Number of days to retain backups; default is 30 |
@@ -173,7 +181,7 @@ curl http://localhost:3000/api/months
 curl http://localhost:3000/api/sessions/all
 ```
 
-The manual sync endpoint has no authentication because this stack is intended for local/private use. Do not expose port `3000` or the sync endpoint directly to the internet without adding authentication, authorization, rate limiting, and an appropriate deployment boundary.
+The local Compose default keeps API authentication disabled because the stack is bound to loopback. Before allowing access from another machine, set `API_AUTH_REQUIRED=true` plus a server-only `API_AUTH_USERNAME` and `API_AUTH_PASSWORD`; browsers will use the standard Basic Auth prompt. Do not expose port `3000` or the sync endpoint directly to the internet without TLS, authentication, authorization, rate limiting, and an appropriate deployment boundary. CORS is not an authentication control.
 
 ## Data, backups, and schema changes
 
