@@ -5,19 +5,23 @@ import helmet from 'helmet';
 import type { CorsOptions } from 'cors';
 import type { ErrorRequestHandler, NextFunction, Request, Response } from 'express';
 import { pool, testConnection } from './config/database';
+import {
+  allowedOrigins,
+  apiRateLimit,
+  assertApiAuthConfiguration,
+  isApiAuthEnabled,
+  requireApiAuth,
+} from './middleware/security';
 import apiRoutes from './routes/api';
 import { getErrorMessage } from './utils/errors';
 
 const app = express();
 const PORT = Number.parseInt(process.env.PORT ?? '3000', 10);
-const allowedOrigins = new Set(
-  (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-);
 
 app.disable('x-powered-by');
+// The backend does not trust client-supplied X-Forwarded-* headers. If the
+// deployment adds a trusted proxy, configure that topology explicitly.
+app.set('trust proxy', false);
 app.use(helmet());
 app.use(compression());
 
@@ -30,7 +34,7 @@ const corsOptions: CorsOptions = {
     callback(null, false);
   },
   methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '100kb' }));
@@ -44,7 +48,11 @@ app.get('/health', async (_req: Request, res: Response): Promise<void> => {
   }
 });
 
-app.use('/api', apiRoutes);
+app.use('/api', (req: Request, res: Response, next: NextFunction): void => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+app.use('/api', requireApiAuth, apiRateLimit, apiRoutes);
 
 app.use((_req: Request, res: Response): void => {
   res.status(404).json({ success: false, error: 'Not found' });
@@ -62,6 +70,12 @@ const errorHandler: ErrorRequestHandler = (
 app.use(errorHandler);
 
 async function start(): Promise<void> {
+  assertApiAuthConfiguration();
+  if (!isApiAuthEnabled()) {
+    console.warn(
+      'API authentication is disabled; keep the backend and reverse proxy on trusted private networks',
+    );
+  }
   await testConnection();
   app.listen(PORT, () => {
     console.log(`Backend API running on port ${PORT}`);

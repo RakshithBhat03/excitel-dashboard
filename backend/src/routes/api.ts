@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import type {
   ApiFailure,
   ApiSuccess,
+  BillingMonthId,
   MonthsResponsePayload,
   SelectableMonth,
   SelectableMonthId,
@@ -11,14 +12,57 @@ import type {
   SyncStatusResponsePayload,
 } from '../../../shared/contracts';
 import { pool } from '../config/database';
+import { requireTrustedOrigin, syncRateLimit } from '../middleware/security';
 import type { MonthRow, SessionRow, SyncStatusDbRow } from '../types/database';
-import { syncMonth } from '../services/syncService';
+import { isSyncInProgress, syncMonth } from '../services/syncService';
 
 const router = Router();
-const MONTH_ID_PATTERN = /^(0?[1-9]|1[0-2])-\d{4}$/;
+const MONTH_ID_PATTERN = /^(0?[1-9]|1[0-2])-(\d{4})$/;
+const MIN_SUPPORTED_YEAR = 2000;
 
-function isValidMonthId(monthId: string): monthId is SelectableMonthId {
-  return monthId === 'all' || MONTH_ID_PATTERN.test(monthId);
+function normalizeMonthId(monthId: string): SelectableMonthId | null {
+  if (monthId === 'all') return 'all';
+
+  const match = MONTH_ID_PATTERN.exec(monthId);
+  const month = Number.parseInt(match?.[1] ?? '', 10);
+  const year = Number.parseInt(match?.[2] ?? '', 10);
+  const maxSupportedYear = new Date().getFullYear() + 1;
+
+  if (
+    !match ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    year < MIN_SUPPORTED_YEAR ||
+    year > maxSupportedYear
+  ) {
+    return null;
+  }
+
+  return `${month}-${year}`;
+}
+
+function monthTitle(monthId: BillingMonthId): string {
+  const [monthNumber, year] = monthId.split('-');
+  const monthNames = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return `${monthNames[Number.parseInt(monthNumber ?? '1', 10) - 1] ?? 'Unknown'} ${year ?? ''}`;
+}
+
+function isCurrentMonth(monthId: BillingMonthId): boolean {
+  const now = new Date();
+  return monthId === `${now.getMonth() + 1}-${now.getFullYear()}`;
 }
 
 function failure(error: string): ApiFailure {
@@ -51,47 +95,12 @@ router.get(
   '/sessions/:monthId',
   async (req: Request<{ monthId: string }>, res: Response): Promise<void> => {
     try {
-      const { monthId } = req.params;
+      const requestedMonthId = req.params.monthId;
+      const monthId = normalizeMonthId(requestedMonthId);
 
-      if (!isValidMonthId(monthId)) {
+      if (!monthId) {
         res.status(400).json(failure('Invalid month ID format'));
         return;
-      }
-
-      if (monthId !== 'all') {
-        const [monthNum, year] = monthId.split('-');
-        const monthNames = [
-          'January',
-          'February',
-          'March',
-          'April',
-          'May',
-          'June',
-          'July',
-          'August',
-          'September',
-          'October',
-          'November',
-          'December',
-        ];
-        const monthTitle = `${monthNames[Number.parseInt(monthNum ?? '1', 10) - 1] ?? 'Unknown'} ${year ?? ''}`;
-
-        await pool.query(
-          `
-          INSERT INTO months (id, title, is_current)
-          VALUES ($1, $2, FALSE)
-          ON CONFLICT (id) DO NOTHING
-        `,
-          [monthId, monthTitle],
-        );
-
-        await pool.query(
-          `
-          INSERT INTO months (id, title, is_current)
-          VALUES ('12-2025', 'December 2025', FALSE)
-          ON CONFLICT (id) DO NOTHING
-        `,
-        );
       }
 
       const allMonthsResult = await pool.query<MonthRow>(`
@@ -103,7 +112,21 @@ router.get(
       `);
 
       const allTimeMonth: SelectableMonth = { id: 'all', title: 'All Time', current: false };
-      const monthsWithAll: SelectableMonth[] = [allTimeMonth, ...allMonthsResult.rows];
+      const requestedMonth = monthId === 'all'
+        ? null
+        : {
+            id: monthId,
+            title: monthTitle(monthId),
+            current: isCurrentMonth(monthId),
+          } satisfies SelectableMonth;
+      const requestedMonthIsKnown = requestedMonth
+        ? allMonthsResult.rows.some((month) => month.id === requestedMonth.id)
+        : true;
+      const monthsWithAll: SelectableMonth[] = [
+        allTimeMonth,
+        ...(requestedMonth && !requestedMonthIsKnown ? [requestedMonth] : []),
+        ...allMonthsResult.rows,
+      ];
 
       const sessionsResult = await pool.query<SessionRow>(`
         SELECT
@@ -156,11 +179,14 @@ router.get('/sync-status', async (_req: Request, res: Response): Promise<void> =
 // POST /api/sync/:monthId - Trigger sync for a specific month from Excitel API
 router.post(
   '/sync/:monthId',
+  syncRateLimit,
+  requireTrustedOrigin,
   async (req: Request<{ monthId: string }>, res: Response): Promise<void> => {
     try {
-      const { monthId } = req.params;
+      const requestedMonthId = req.params.monthId;
+      const monthId = normalizeMonthId(requestedMonthId);
 
-      if (!isValidMonthId(monthId)) {
+      if (!monthId) {
         res.status(400).json(failure('Invalid month ID format'));
         return;
       }
@@ -169,6 +195,11 @@ router.post(
         res
           .status(400)
           .json(failure('Cannot sync "all" months. Please select a specific month.'));
+        return;
+      }
+
+      if (isSyncInProgress(monthId)) {
+        res.status(409).json(failure('A sync is already in progress; try again shortly'));
         return;
       }
 
@@ -185,7 +216,9 @@ router.post(
         return;
       }
 
-      res.status(502).json(failure('Failed to sync data from Excitel'));
+      res
+        .status(result.reason === 'in-progress' ? 409 : 502)
+        .json(failure(result.reason === 'in-progress' ? result.error : 'Failed to sync data from Excitel'));
     } catch (error: unknown) {
       console.error('Error triggering sync:', error);
       res.status(500).json(failure('Failed to trigger sync'));

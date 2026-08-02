@@ -7,6 +7,8 @@ export const pool = new Pool({
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
+  query_timeout: 30000,
+  statement_timeout: 30000,
 });
 
 export async function testConnection(): Promise<void> {
