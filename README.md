@@ -4,6 +4,17 @@ Excitel Dashboard is a self-hosted broadband usage dashboard for Excitel account
 
 This is an independent, unofficial project. It is designed for local or private use and stores account usage history, including session metadata and IP addresses, in your local database.
 
+## Screenshots
+
+The screenshots below show the desktop layout with the fully populated July 2026 period selected. They are sanitized crops: account names, usernames, IP addresses, and other connection identifiers are intentionally kept out of frame.
+
+<p>
+  <img src="docs/screenshots/dashboard-july-2026-overview.png" alt="Excitel Dashboard desktop overview for July 2026" width="100%" />
+</p>
+<p>
+  <img src="docs/screenshots/dashboard-july-2026-analytics.png" alt="Excitel Dashboard desktop analytics for July 2026" width="100%" />
+</p>
+
 ## Features
 
 - Usage summaries and trends by billing month
