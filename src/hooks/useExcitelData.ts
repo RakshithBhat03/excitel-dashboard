@@ -35,9 +35,15 @@ export function useExcitelData(): UseExcitelDataResult {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hasFallenBack = useRef(false);
+  // Guards against an older month request landing after a newer one when the
+  // user clicks through the archive faster than the API responds.
+  const requestId = useRef(0);
 
   const fetchData = useCallback(async (monthId: SelectableMonthId): Promise<void> => {
-    setLoading(true);
+    // loading only gates the very first paint (it starts true and is cleared
+    // below). Month switches keep the previous panels mounted and swap data in
+    // place; toggling the skeleton here is what caused the flash on each click.
+    const request = ++requestId.current;
     setError(null);
 
     let nextMonthId = monthId;
@@ -48,6 +54,7 @@ export function useExcitelData(): UseExcitelDataResult {
       // rather than landing the user on an empty page.
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const result = await fetchUsageData(nextMonthId);
+        if (request !== requestId.current) return;
         if (!result.success) throw new Error(result.error || 'Failed to fetch data');
 
         const sessions = result.result.sessions || [];
@@ -71,9 +78,10 @@ export function useExcitelData(): UseExcitelDataResult {
         break;
       }
     } catch (caught) {
+      if (request !== requestId.current) return;
       setError(getErrorMessage(caught));
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
   }, []);
 
