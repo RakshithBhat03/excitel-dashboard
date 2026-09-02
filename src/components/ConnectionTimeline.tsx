@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import type { DailySummary, Outage } from '../types/analytics';
+import { outageSpanForDay } from '../utils/analytics';
 import { formatCompactMinutes, formatGbText, minuteOfDayToClock } from '../utils/formatters';
 import { Empty, Panel, PanelHead, TipRow, TipShell } from './ui';
 
@@ -10,9 +11,8 @@ import { Empty, Panel, PanelHead, TipRow, TipShell } from './ui';
  *
  * One column per day, each column a full 24 hours read top to bottom. Filled
  * minutes are minutes the line was actually connected; colour carries how much
- * data moved that day. Breaks in service are marked at the minute they
- * happened — they are real but brief, so they get an annotation rule rather
- * than an exaggerated gap.
+ * data moved that day. Breaks in service fill their exact missing interval in
+ * red, including outages that continue across calendar days.
  */
 
 const RAMP = [
@@ -34,6 +34,8 @@ function step(usage: number, max: number): number {
 interface TimelineColumn extends DailySummary {
   tone: string;
   drops: Outage[];
+  downtime: NonNullable<ReturnType<typeof outageSpanForDay>>[];
+  downMinutes: number;
 }
 
 interface ConnectionTimelineProps {
@@ -60,11 +62,19 @@ export default function ConnectionTimeline({
     }
     return {
       max,
-      columns: days.map((d) => ({
-        ...d,
-        tone: RAMP[step(d.usage, max)] ?? RAMP[0] ?? 'var(--color-ramp-0)',
-        drops: byDay.get(d.dateKey) || [],
-      })),
+      columns: days.map((d) => {
+        const downtime = outages.flatMap((outage) => {
+          const span = outageSpanForDay(outage, d.date);
+          return span ? [span] : [];
+        });
+        return {
+          ...d,
+          tone: RAMP[step(d.usage, max)] ?? RAMP[0] ?? 'var(--color-ramp-0)',
+          drops: byDay.get(d.dateKey) || [],
+          downtime,
+          downMinutes: downtime.reduce((total, span) => total + span.to - span.from, 0),
+        };
+      }),
     };
   }, [days, outages]);
 
@@ -89,7 +99,7 @@ export default function ConnectionTimeline({
       <PanelHead
         label="Connection timeline"
         title="Every hour of the period"
-        meta={`${columns.length} days · 00:00 to 24:00 top to bottom · colour is data moved`}
+        meta={`${columns.length} days · 00:00 to 24:00 top to bottom · red is downtime`}
       >
         <div className="hidden sm:flex items-center gap-2">
           <span className="label !text-[var(--color-ink-3)]">less</span>
@@ -150,8 +160,19 @@ export default function ConnectionTimeline({
                   onBlur={() => setHover(null)}
                   aria-label={`${day.fullLabel}: ${formatGbText(day.usage)}, connected ${formatCompactMinutes(
                     day.connectedMinutes
-                  )}${day.drops.length ? `, ${day.drops.length} service drop` : ''}`}
+                  )}${day.downMinutes ? `, offline ${formatCompactMinutes(day.downMinutes)}` : ''}`}
                 >
+                  {day.downtime.map((span) => (
+                    <span
+                      key={span.id}
+                      className="absolute left-0 right-0 rounded-[2px] bg-[var(--color-down)]"
+                      style={{
+                        top: `${(span.from / 1440) * 100}%`,
+                        height: `${Math.max(0.4, ((span.to - span.from) / 1440) * 100)}%`,
+                      }}
+                    />
+                  ))}
+
                   {day.spans.map((span, k) => (
                     <span
                       key={k}
@@ -161,17 +182,6 @@ export default function ConnectionTimeline({
                         height: `${Math.max(0.4, ((span.to - span.from) / 1440) * 100)}%`,
                         background: day.tone,
                         animation: `ribbon-rise .5s cubic-bezier(.22,.68,.28,1) ${Math.min(i * 8, 400)}ms both`,
-                      }}
-                    />
-                  ))}
-
-                  {/* Service drops: annotated at the minute they happened */}
-                  {day.drops.map((drop) => (
-                    <span
-                      key={drop.id}
-                      className="absolute left-0 right-0 h-[2px] bg-[var(--color-down)]"
-                      style={{
-                        top: `${((drop.from.getHours() * 60 + drop.from.getMinutes()) / 1440) * 100}%`,
                       }}
                     />
                   ))}
@@ -216,6 +226,13 @@ export default function ConnectionTimeline({
                   <TipRow label="Data" value={formatGbText(active.usage)} swatch={active.tone} />
                   <TipRow label="Connected" value={formatCompactMinutes(active.connectedMinutes)} />
                   <TipRow label="Sessions" value={active.sessionCount || '—'} />
+                  {active.downMinutes > 0 && (
+                    <TipRow
+                      label="Offline"
+                      value={formatCompactMinutes(active.downMinutes)}
+                      swatch="var(--color-down)"
+                    />
+                  )}
                   {active.drops.length > 0 && (
                     <TipRow
                       label="Drop"
@@ -251,7 +268,7 @@ export default function ConnectionTimeline({
             </span>
           </p>
           <p className="flex items-center gap-1.5 text-xs text-[var(--color-ink-2)]">
-            <span className="w-3.5 h-[2px] bg-[var(--color-down)] rounded-full" aria-hidden />
+            <span className="w-3.5 h-3.5 bg-[var(--color-down)] rounded-[2px]" aria-hidden />
             {stats.outageCount
               ? `${stats.outageCount} service drop${stats.outageCount > 1 ? 's' : ''}, ${formatCompactMinutes(
                   stats.downMinutes

@@ -41,6 +41,11 @@ function normalizeMonthId(monthId: string): SelectableMonthId | null {
   return `${month}-${year}`;
 }
 
+function monthStart(monthId: BillingMonthId): string {
+  const [month, year] = monthId.split('-');
+  return `${year}-${month?.padStart(2, '0')}-01`;
+}
+
 function monthTitle(monthId: BillingMonthId): string {
   const [monthNumber, year] = monthId.split('-');
   const monthNames = [
@@ -128,6 +133,7 @@ router.get(
         ...allMonthsResult.rows,
       ];
 
+      const start = monthId === 'all' ? null : monthStart(monthId);
       const sessionsResult = await pool.query<SessionRow>(`
         SELECT
           session_id as "sessionId",
@@ -138,9 +144,12 @@ router.get(
           ip_address as "ipAddress",
           termination_cause as "terminationCause"
         FROM sessions
-        WHERE $1 = 'all' OR month_id = $1
+        WHERE $1 = 'all' OR (
+          session_start_date < $2::timestamp + INTERVAL '1 month'
+          AND session_end_date > $2::timestamp
+        )
         ORDER BY session_start_date DESC
-      `, [monthId]);
+      `, [monthId, start]);
 
       const payload: SessionsResponsePayload = {
         sessions: sessionsResult.rows,

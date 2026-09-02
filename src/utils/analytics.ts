@@ -6,7 +6,7 @@ import {
   parseISO,
   startOfDay,
 } from 'date-fns';
-import type { NumericValue, RawExcitelSession } from '../../shared/contracts';
+import type { BillingMonthId, NumericValue, RawExcitelSession } from '../../shared/contracts';
 import type {
   AddressPoolSummary,
   DashboardStats,
@@ -29,6 +29,7 @@ import type {
 
 const MB_PER_GB = 1024;
 const MIN_GAP_MINUTES = 1;
+type AnalyticsPeriod = { start: Date; end: Date };
 
 function num(value: NumericValue | null | undefined): number {
   const number = Number(value);
@@ -61,20 +62,48 @@ export function normalizeSessions(sessions: RawExcitelSession[] = []): Normalize
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
+/** Exact local-time bounds for a selected calendar month. */
+export function monthPeriod(monthId: BillingMonthId, now = new Date()): AnalyticsPeriod {
+  const [monthValue, yearValue] = monthId.split('-');
+  const month = Number.parseInt(monthValue ?? '', 10) - 1;
+  const year = Number.parseInt(yearValue ?? '', 10);
+  const start = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 1);
+  return { start, end: now >= start && now < monthEnd ? now : monthEnd };
+}
+
+/** Clip spillover sessions to the selected calendar month. */
+export function clipSessionsToPeriod(
+  rows: NormalizedSession[],
+  period: AnalyticsPeriod,
+): NormalizedSession[] {
+  return rows.flatMap((session) => {
+    const start = session.start < period.start ? period.start : session.start;
+    const end = session.end > period.end ? period.end : session.end;
+    if (end <= start) return [];
+
+    const share = (end.getTime() - start.getTime()) / (session.end.getTime() - session.start.getTime());
+    return [{ ...session, start, end, minutes: session.minutes * share, gb: session.gb * share }];
+  });
+}
+
 /**
  * One row per calendar day covered by the period, each carrying the minute
  * ranges the line was actually connected. This is what the timeline draws.
  */
-export function buildDays(rows: NormalizedSession[]): DailySummary[] {
+export function buildDays(
+  rows: NormalizedSession[],
+  period?: AnalyticsPeriod,
+): DailySummary[] {
   const firstRow = rows[0];
   const lastRow = rows[rows.length - 1];
   if (!firstRow || !lastRow) return [];
 
-  const first = startOfDay(firstRow.start);
-  const last = startOfDay(lastRow.end);
+  const first = startOfDay(period?.start ?? firstRow.start);
+  const end = period?.end ?? lastRow.end;
   const days = new Map<string, DailySummary>();
 
-  for (let date = first; date <= last; date = addDays(date, 1)) {
+  for (let date = first; date < end; date = addDays(date, 1)) {
     const key = format(date, 'yyyy-MM-dd');
     days.set(key, {
       dateKey: key,
@@ -120,31 +149,49 @@ export function buildDays(rows: NormalizedSession[]): DailySummary[] {
   return [...days.values()];
 }
 
-/** Real breaks in service: the line was down between these two sessions. */
-export function findOutages(rows: NormalizedSession[]): Outage[] {
+/** Real breaks in service, including missing time at period boundaries. */
+export function findOutages(rows: NormalizedSession[], period?: AnalyticsPeriod): Outage[] {
   const outages: Outage[] = [];
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  if (!first || !last) return outages;
+
+  if (period) addOutage(outages, 'period-start', period.start, first.start, first.cause);
+
   for (let index = 1; index < rows.length; index += 1) {
     const previous = rows[index - 1];
     const next = rows[index];
     if (!previous || !next) continue;
-    const minutes = differenceInMinutes(next.start, previous.end);
-    if (minutes >= MIN_GAP_MINUTES) {
-      outages.push({
-        id: `${previous.sessionId}-${next.sessionId}`,
-        from: previous.end,
-        to: next.start,
-        minutes,
-        cause: previous.cause,
-      });
-    }
+    addOutage(outages, `${previous.sessionId}-${next.sessionId}`, previous.end, next.start, previous.cause);
   }
+
+  if (period) addOutage(outages, 'period-end', last.end, period.end, last.cause);
   return outages.sort((a, b) => b.minutes - a.minutes);
+}
+
+function addOutage(outages: Outage[], id: string, from: Date, to: Date, cause: string): void {
+  const minutes = differenceInMinutes(to, from);
+  if (minutes >= MIN_GAP_MINUTES) outages.push({ id, from, to, minutes, cause });
+}
+
+/** The portion of an outage that falls within one timeline day. */
+export function outageSpanForDay(outage: Outage, date: Date) {
+  const dayStart = startOfDay(date);
+  const dayEnd = addDays(dayStart, 1);
+  if (outage.to <= dayStart || outage.from >= dayEnd) return null;
+
+  return {
+    id: outage.id,
+    from: differenceInMinutes(outage.from < dayStart ? dayStart : outage.from, dayStart),
+    to: differenceInMinutes(outage.to > dayEnd ? dayEnd : outage.to, dayStart),
+  };
 }
 
 export function summarize(
   rows: NormalizedSession[],
   days: DailySummary[],
   outages: Outage[],
+  period?: AnalyticsPeriod,
 ): DashboardStats {
   if (!rows.length) {
     return {
@@ -173,8 +220,8 @@ export function summarize(
 
   const totalGb = rows.reduce((total, session) => total + session.gb, 0);
   const totalMinutes = rows.reduce((total, session) => total + session.minutes, 0);
-  const periodStart = firstRow.start;
-  const periodEnd = lastRow.end;
+  const periodStart = period?.start ?? firstRow.start;
+  const periodEnd = period?.end ?? lastRow.end;
   const spanMinutes = Math.max(1, differenceInMinutes(periodEnd, periodStart));
   const downMinutes = outages.reduce((total, outage) => total + outage.minutes, 0);
 

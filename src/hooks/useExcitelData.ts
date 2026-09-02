@@ -11,8 +11,10 @@ import type { UseExcitelDataResult } from '../types/analytics';
 import {
   addressPool,
   buildDays,
+  clipSessionsToPeriod,
   findOutages,
   linkState,
+  monthPeriod,
   monthlyTotals,
   normalizeSessions,
   summarize,
@@ -127,21 +129,23 @@ export function useExcitelData(): UseExcitelDataResult {
   }, [selectedMonth, fetchData, fetchArchive]);
 
   const analytics = useMemo(() => {
-    const rows = normalizeSessions(rawSessions);
-    const days = buildDays(rows);
-    const outages = findOutages(rows);
+    const normalized = normalizeSessions(rawSessions);
+    const period = selectedMonth && selectedMonth !== 'all' ? monthPeriod(selectedMonth) : undefined;
+    const rows = period ? clipSessionsToPeriod(normalized, period) : normalized;
+    const days = buildDays(rows, period);
+    const outages = findOutages(rows, period);
 
     return {
       rows,
       days,
       outages,
-      stats: summarize(rows, days, outages),
+      stats: summarize(rows, days, outages, period),
       weekdays: weekdayProfile(days),
       causes: terminationBreakdown(rows),
       pool: addressPool(rows),
       link: linkState(rows),
     };
-  }, [rawSessions]);
+  }, [rawSessions, selectedMonth]);
 
   const history = useMemo(() => monthlyTotals(normalizeSessions(archive)), [archive]);
 
