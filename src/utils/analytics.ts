@@ -29,7 +29,7 @@ import type {
 
 const MB_PER_GB = 1024;
 const MIN_GAP_MINUTES = 1;
-type AnalyticsPeriod = { start: Date; end: Date };
+type AnalyticsPeriod = { start: Date; end: Date; live?: boolean };
 
 function num(value: NumericValue | null | undefined): number {
   const number = Number(value);
@@ -69,7 +69,8 @@ export function monthPeriod(monthId: BillingMonthId, now = new Date()): Analytic
   const year = Number.parseInt(yearValue ?? '', 10);
   const start = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 1);
-  return { start, end: now >= start && now < monthEnd ? now : monthEnd };
+  const live = now >= start && now < monthEnd;
+  return { start, end: live ? now : monthEnd, live };
 }
 
 /** Clip spillover sessions to the selected calendar month. */
@@ -165,7 +166,10 @@ export function findOutages(rows: NormalizedSession[], period?: AnalyticsPeriod)
     addOutage(outages, `${previous.sessionId}-${next.sessionId}`, previous.end, next.start, previous.cause);
   }
 
-  if (period) addOutage(outages, 'period-end', last.end, period.end, last.cause);
+  // A live period ends at `now`, so the gap after the newest session is
+  // unsynced time, not measured downtime. Only closed months get a trailing
+  // outage.
+  if (period && !period.live) addOutage(outages, 'period-end', last.end, period.end, last.cause);
   return outages.sort((a, b) => b.minutes - a.minutes);
 }
 
@@ -221,7 +225,9 @@ export function summarize(
   const totalGb = rows.reduce((total, session) => total + session.gb, 0);
   const totalMinutes = rows.reduce((total, session) => total + session.minutes, 0);
   const periodStart = period?.start ?? firstRow.start;
-  const periodEnd = period?.end ?? lastRow.end;
+  // Live periods end at `now`; measure uptime only up to the newest record
+  // so unsynced time today isn't scored as downtime.
+  const periodEnd = period?.live ? lastRow.end : (period?.end ?? lastRow.end);
   const spanMinutes = Math.max(1, differenceInMinutes(periodEnd, periodStart));
   const downMinutes = outages.reduce((total, outage) => total + outage.minutes, 0);
 
