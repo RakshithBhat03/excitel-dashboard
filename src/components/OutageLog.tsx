@@ -1,10 +1,12 @@
-import { formatCompactMinutes, formatDay, formatClock } from '../utils/formatters';
+import { ShieldCheck } from '@phosphor-icons/react';
+import { formatClock, formatCompactMinutes } from '../utils/formatters';
+import { format } from 'date-fns';
 import type { DashboardStats, Outage } from '../types/analytics';
 import { Empty, Panel, PanelHead } from './ui';
 
 /**
  * Every break in service in the period, longest first. A break is the gap
- * between one session ending and the next beginning — measured, not inferred.
+ * between one session ending and the next beginning: measured, not inferred.
  */
 interface OutageLogProps {
   outages: Outage[];
@@ -15,46 +17,52 @@ export default function OutageLog({ outages, stats }: OutageLogProps) {
   return (
     <Panel>
       <PanelHead
-        label="Service drops"
-        title="When the line was down"
+        title="Service drops"
         meta={
           outages.length
-            ? `${outages.length} break${outages.length > 1 ? 's' : ''} totalling ${formatCompactMinutes(stats.downMinutes)}`
+            ? `${outages.length} ${outages.length > 1 ? 'breaks' : 'break'} totalling ${formatCompactMinutes(stats.downMinutes)}.`
             : undefined
         }
-      >
-        {outages.length > 0 && (
-          <span className="chip chip-down">{formatCompactMinutes(stats.downMinutes)} off</span>
-        )}
-      </PanelHead>
+      />
 
       {outages.length === 0 ? (
-        <Empty message="The line held for the whole period — no breaks between sessions." />
+        <Empty
+          icon={<ShieldCheck className="h-6 w-6 text-[var(--color-up)]" weight="duotone" />}
+          message="No drops"
+          detail="The line held for the whole period. There were no gaps between sessions."
+        />
       ) : (
-        <ul className="flex-1 divide-y divide-[var(--color-line)]">
-          {outages.slice(0, 8).map((o) => (
-            <li key={o.id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
-              <span
-                className="h-8 w-[3px] shrink-0 rounded-full bg-[var(--color-down)]"
-                aria-hidden
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-[var(--color-ink)]">{formatDay(o.from)}</p>
-                <p className="num text-[11px] text-[var(--color-ink-2)]">
-                  {formatClock(o.from)} → {formatClock(o.to)} · after {o.cause.toLowerCase()}
-                </p>
-              </div>
-              <span className="num shrink-0 text-[13px] font-medium text-[var(--color-down)]">
-                {formatCompactMinutes(o.minutes)}
+        <ol className="space-y-2">
+          {outages.slice(0, 6).map((o) => (
+            <li
+              key={o.id}
+              className="flex items-center gap-4 rounded-[10px] bg-[var(--color-inset)] px-4 py-3"
+            >
+              <span className="w-10 shrink-0 text-center">
+                <span className="block text-[11px] leading-none text-[var(--color-ink-3)]">
+                  {format(o.from, 'MMM')}
+                </span>
+                <span className="figure mt-1 block text-[22px] text-[var(--color-ink)]">
+                  {format(o.from, 'd')}
+                </span>
               </span>
+              <span className="min-w-0 flex-1">
+                <span className="num block text-[13px] text-[var(--color-ink)]">
+                  {formatClock(o.from)} to {formatClock(o.to)}
+                </span>
+                <span className="block truncate text-[12px] text-[var(--color-ink-3)]">
+                  After {o.cause.toLowerCase()}
+                </span>
+              </span>
+              <span className="chip chip-down num shrink-0">{formatCompactMinutes(o.minutes)} off</span>
             </li>
           ))}
-          {outages.length > 8 && (
-            <li className="px-4 py-2.5 sm:px-5">
-              <p className="label">{outages.length - 8} shorter breaks not shown</p>
+          {outages.length > 6 && (
+            <li className="px-1 pt-1 text-[12px] text-[var(--color-ink-3)]">
+              {outages.length - 6} shorter {outages.length - 6 === 1 ? 'break' : 'breaks'} not shown
             </li>
           )}
-        </ul>
+        </ol>
       )}
     </Panel>
   );

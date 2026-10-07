@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import type { DailySummary, Outage } from '../types/analytics';
+import type { DailySummary, DashboardStats, Outage } from '../types/analytics';
 import { outageSpanForDay } from '../utils/analytics';
-import { formatCompactMinutes, formatGbText, minuteOfDayToClock } from '../utils/formatters';
-import { Empty, Panel, PanelHead, TipRow, TipShell } from './ui';
+import { formatCompactMinutes, formatGb, formatGbText, minuteOfDayToClock } from '../utils/formatters';
+import { Empty, LegendItem, Panel, PanelHead, TipRow, TipShell } from './ui';
 
 /**
- * The connection timeline.
+ * The connection ledger.
  *
- * One column per day, each column a full 24 hours read top to bottom. Filled
- * minutes are minutes the line was actually connected; colour carries how much
- * data moved that day. Breaks in service fill their exact missing interval in
- * red, including outages that continue across calendar days.
+ * One row per day, each row a full 24 hours read left to right. Filled
+ * stretches are minutes the line was actually connected; colour carries how
+ * much data moved that day. Breaks in service fill their exact missing
+ * interval in red, including outages that continue across calendar days.
+ * The day's volume sits at the end of its row, so the two read together.
  */
 
 const RAMP = [
@@ -24,14 +25,17 @@ const RAMP = [
   'var(--color-ramp-5)',
 ];
 
-const HOUR_MARKS = [0, 6, 12, 18, 24];
+const HOUR_MARKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+/** Grid columns: date, the 24h strand, volume bar, volume value. */
+const ROW_GRID = 'grid grid-cols-[52px_minmax(0,1fr)_64px] sm:grid-cols-[64px_minmax(0,1fr)_minmax(80px,180px)_76px] items-center gap-x-3 sm:gap-x-4';
 
 function step(usage: number, max: number): number {
   if (!usage || !max) return 0;
   return Math.min(5, Math.max(1, Math.ceil((usage / max) * 5)));
 }
 
-interface TimelineColumn extends DailySummary {
+interface TimelineRow extends DailySummary {
   tone: string;
   drops: Outage[];
   downtime: NonNullable<ReturnType<typeof outageSpanForDay>>[];
@@ -41,17 +45,13 @@ interface TimelineColumn extends DailySummary {
 interface ConnectionTimelineProps {
   days: DailySummary[];
   outages: Outage[];
-  stats: import('../types/analytics').DashboardStats;
+  stats: DashboardStats;
 }
 
-export default function ConnectionTimeline({
-  days,
-  outages,
-  stats,
-}: ConnectionTimelineProps) {
+export default function ConnectionTimeline({ days, outages, stats }: ConnectionTimelineProps) {
   const [hover, setHover] = useState<number | null>(null);
 
-  const model = useMemo<{ max: number; columns: TimelineColumn[] }>(() => {
+  const model = useMemo<{ max: number; rows: TimelineRow[] }>(() => {
     const max = days.reduce((m, d) => Math.max(m, d.usage), 0);
     const byDay = new Map<string, Outage[]>();
     for (const outage of outages) {
@@ -62,14 +62,14 @@ export default function ConnectionTimeline({
     }
     return {
       max,
-      columns: days.map((d) => {
+      rows: days.map((d) => {
         const downtime = outages.flatMap((outage) => {
           const span = outageSpanForDay(outage, d.date);
           return span ? [span] : [];
         });
         return {
           ...d,
-          tone: RAMP[step(d.usage, max)] ?? RAMP[0] ?? 'var(--color-ramp-0)',
+          tone: RAMP[step(d.usage, max)] ?? 'var(--color-ramp-0)',
           drops: byDay.get(d.dateKey) || [],
           downtime,
           downMinutes: downtime.reduce((total, span) => total + span.to - span.from, 0),
@@ -80,81 +80,97 @@ export default function ConnectionTimeline({
 
   if (!days.length) {
     return (
-      <Panel className="min-h-[280px]">
-        <PanelHead label="Connection timeline" title="Every hour of the period" />
+      <Panel>
+        <PanelHead title="Every hour, every day" />
         <Empty message="No sessions recorded for this period yet." />
       </Panel>
     );
   }
 
-  const { columns, max } = model;
-  const dense = columns.length > 45;
-  const active = hover !== null ? columns[hover] ?? null : null;
+  const { rows, max } = model;
 
-  // Date ticks: first, last, and a handful in between.
-  const tickEvery = Math.max(1, Math.round(columns.length / 8));
+  // Rows shrink as the period grows: a week gets fat bands, a month gets a
+  // fine weave, the full archive gets a 2px barcode.
+  const rowHeight = Math.max(2, Math.min(34, Math.floor(380 / rows.length) - 3));
+  const gap = rowHeight >= 8 ? 3 : rowHeight >= 4 ? 2 : 1;
+  const pitch = rowHeight + gap;
+  const labelEvery = Math.max(1, Math.ceil(16 / pitch));
+  const radius = rowHeight >= 8 ? 3 : 1;
+  const active = hover !== null ? rows[hover] ?? null : null;
 
   return (
-    <Panel className="overflow-hidden">
+    <Panel>
       <PanelHead
-        label="Connection timeline"
-        title="Every hour of the period"
-        meta={`${columns.length} days · 00:00 to 24:00 top to bottom · red is downtime`}
+        title="Every hour, every day"
+        meta={`${rows.length} ${rows.length === 1 ? 'day' : 'days'}, midnight to midnight. Filled time is connected time; the deeper the blue, the more data moved that day.`}
       >
-        <div className="hidden sm:flex items-center gap-2">
-          <span className="label !text-[var(--color-ink-3)]">less</span>
-          <span className="flex gap-[2px]" aria-hidden>
-            {RAMP.slice(1).map((tone) => (
-              <span
-                key={tone}
-                className="w-4 h-3 rounded-[2px] border border-[var(--color-line)]"
-                style={{ background: tone }}
-              />
-            ))}
+        <div className="hidden items-center gap-4 md:flex">
+          <span className="flex items-center gap-2">
+            <span className="text-[12px] text-[var(--color-ink-3)]">Less</span>
+            <span className="flex gap-[2px]" aria-hidden>
+              {RAMP.slice(1).map((tone) => (
+                <span key={tone} className="h-3 w-4 rounded-[2px]" style={{ background: tone }} />
+              ))}
+            </span>
+            <span className="text-[12px] text-[var(--color-ink-3)]">More</span>
           </span>
-          <span className="label !text-[var(--color-ink-3)]">more</span>
+          <LegendItem color="var(--color-down)" name="Offline" />
         </div>
       </PanelHead>
 
-      <div className="p-4 pt-6 sm:p-5 sm:pt-7">
-        <div className="flex gap-3">
-          {/* Hour rail */}
-          <div className="relative w-6 shrink-0 h-[240px] hidden sm:block" aria-hidden>
-            {HOUR_MARKS.map((h) => (
+      {/* Hour axis */}
+      <div className={cn(ROW_GRID, 'mb-2')} aria-hidden>
+        <span />
+        <div className="relative h-4">
+          {HOUR_MARKS.map((h) => (
+            <span
+              key={h}
+              className={cn(
+                'tick absolute top-0 !text-[10px] !tracking-normal',
+                h === 0 ? '' : h === 24 ? '-translate-x-full' : '-translate-x-1/2',
+                h % 6 !== 0 && 'hidden lg:inline'
+              )}
+              style={{ left: `${(h / 24) * 100}%` }}
+            >
+              {String(h).padStart(2, '0')}
+            </span>
+          ))}
+        </div>
+        <span className="tick hidden text-left sm:block">Data</span>
+        <span className="tick hidden sm:block" />
+      </div>
+
+      <div className="relative" onMouseLeave={() => setHover(null)}>
+        {/* Hour gridlines run behind every row */}
+        <div className={cn(ROW_GRID, 'pointer-events-none absolute inset-0')} aria-hidden>
+          <span />
+          <div className="relative h-full">
+            {HOUR_MARKS.slice(1, -1).map((h) => (
               <span
                 key={h}
-                className="label absolute right-0 -translate-y-1/2 !text-[9.5px] !tracking-normal"
-                style={{ top: `${(h / 24) * 100}%` }}
-              >
-                {String(h).padStart(2, '0')}
-              </span>
+                className={cn(
+                  'absolute inset-y-0 border-l',
+                  h % 6 === 0
+                    ? 'border-[var(--color-line-2)]'
+                    : 'border-dashed border-[var(--color-line)]'
+                )}
+                style={{ left: `${(h / 24) * 100}%` }}
+              />
             ))}
           </div>
+        </div>
 
-          <div className="relative flex-1 min-w-0">
-            {/* Hour gridlines sit behind the columns */}
-            <div className="absolute inset-x-0 top-0 h-[240px] pointer-events-none" aria-hidden>
-              {HOUR_MARKS.map((h) => (
-                <span
-                  key={h}
-                  className="absolute left-0 right-0 border-t border-dashed border-[var(--color-line-2)] opacity-70"
-                  style={{ top: `${(h / 24) * 100}%` }}
-                />
-              ))}
-            </div>
-
-            <div
-              className={cn(
-                'relative flex h-[240px] items-stretch',
-                dense ? 'gap-px' : 'gap-[2px] sm:gap-[5px]'
-              )}
-              onMouseLeave={() => setHover(null)}
-            >
-              {columns.map((day, i) => (
+        <ul className="relative flex flex-col" style={{ gap }}>
+          {rows.map((day, i) => {
+            const showLabel = rowHeight >= 12 || i % labelEvery === 0;
+            const vol = formatGb(day.usage);
+            const on = hover === i;
+            return (
+              <li key={day.dateKey}>
                 <button
-                  key={day.dateKey}
                   type="button"
-                  className="group relative flex-1 min-w-0 rounded-[3px] bg-[var(--color-well)] focus:outline-none"
+                  className={cn(ROW_GRID, 'group w-full cursor-default text-left focus:outline-none')}
+                  style={{ height: rowHeight }}
                   onMouseEnter={() => setHover(i)}
                   onFocus={() => setHover(i)}
                   onBlur={() => setHover(null)}
@@ -162,124 +178,154 @@ export default function ConnectionTimeline({
                     day.connectedMinutes
                   )}${day.downMinutes ? `, offline ${formatCompactMinutes(day.downMinutes)}` : ''}`}
                 >
-                  {day.downtime.map((span) => (
-                    <span
-                      key={span.id}
-                      className="absolute left-0 right-0 rounded-[2px] bg-[var(--color-down)]"
-                      style={{
-                        top: `${(span.from / 1440) * 100}%`,
-                        height: `${Math.max(0.4, ((span.to - span.from) / 1440) * 100)}%`,
-                      }}
-                    />
-                  ))}
+                  <span
+                    className={cn(
+                      'num truncate text-[11.5px] leading-none transition-colors',
+                      on ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-3)]',
+                      !showLabel && 'invisible'
+                    )}
+                  >
+                    {format(day.date, rowHeight >= 20 ? 'EEE d' : 'MMM d')}
+                  </span>
 
-                  {day.spans.map((span, k) => (
+                  <span
+                    className="relative block overflow-hidden bg-[var(--color-well)]"
+                    style={{ height: rowHeight, borderRadius: radius }}
+                  >
                     <span
-                      key={k}
-                      className="absolute left-0 right-0 rounded-[2px] origin-bottom"
+                      className="absolute inset-0 origin-left"
                       style={{
-                        top: `${(span.from / 1440) * 100}%`,
-                        height: `${Math.max(0.4, ((span.to - span.from) / 1440) * 100)}%`,
-                        background: day.tone,
-                        animation: `ribbon-rise .5s cubic-bezier(.22,.68,.28,1) ${Math.min(i * 8, 400)}ms both`,
+                        animation: `strand-in .9s cubic-bezier(.16,1,.3,1) ${Math.min(i * 22, 600)}ms both`,
+                      }}
+                    >
+                      {day.spans.map((span, k) => (
+                        <span
+                          key={k}
+                          className="absolute inset-y-0"
+                          style={{
+                            left: `${(span.from / 1440) * 100}%`,
+                            width: `${Math.max(0.15, ((span.to - span.from) / 1440) * 100)}%`,
+                            background: day.tone,
+                            borderRadius: radius,
+                          }}
+                        />
+                      ))}
+                      {day.downtime.map((span) => (
+                        <span
+                          key={span.id}
+                          className="absolute inset-y-0 bg-[var(--color-down)]"
+                          style={{
+                            left: `${(span.from / 1440) * 100}%`,
+                            width: `${Math.max(0.3, ((span.to - span.from) / 1440) * 100)}%`,
+                            borderRadius: radius,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    <span
+                      className={cn(
+                        'absolute inset-0 transition-shadow',
+                        on ? 'shadow-[inset_0_0_0_2px_var(--color-ink)]' : ''
+                      )}
+                      style={{ borderRadius: radius }}
+                    />
+                  </span>
+
+                  <span className="hidden h-full min-h-0 items-center sm:flex">
+                    <span
+                      className="block origin-left transition-colors"
+                      style={{
+                        height: Math.max(2, Math.min(rowHeight, 10)),
+                        width: `${max && day.usage ? Math.max(1.5, (day.usage / max) * 100) : 0}%`,
+                        background: on ? 'var(--color-ink)' : 'var(--color-s1)',
+                        borderRadius: '0 2px 2px 0',
+                        animation: `strand-in .9s cubic-bezier(.16,1,.3,1) ${Math.min(i * 22, 600) + 200}ms both`,
                       }}
                     />
-                  ))}
+                  </span>
 
                   <span
                     className={cn(
-                      'absolute inset-0 rounded-[3px] ring-inset transition-shadow',
-                      hover === i ? 'ring-2 ring-[var(--color-ink)]' : 'ring-0'
+                      'num text-right text-[12px] leading-none',
+                      on ? 'text-[var(--color-ink)]' : 'text-[var(--color-ink-2)]',
+                      !showLabel && 'invisible'
                     )}
-                  />
-                </button>
-              ))}
-            </div>
-
-            {/* Date axis */}
-            <div className="relative mt-2 h-3">
-              {columns.map((day, i) =>
-                i % tickEvery === 0 || i === columns.length - 1 ? (
-                  <span
-                    key={day.dateKey}
-                    className="label absolute -translate-x-1/2 whitespace-nowrap"
-                    style={{ left: `${((i + 0.5) / columns.length) * 100}%` }}
                   >
-                    {day.label}
+                    {day.usage ? (
+                      <>
+                        {vol.value}
+                        <span className="ml-0.5 text-[10px] text-[var(--color-ink-3)]">{vol.unit}</span>
+                      </>
+                    ) : (
+                      '-'
+                    )}
                   </span>
-                ) : null
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {active && hover !== null && (
+          <div
+            className="pointer-events-none absolute z-20 hidden sm:block"
+            style={{
+              top: hover * pitch + rowHeight / 2,
+              left: '50%',
+              transform: hover / rows.length > 0.5 ? 'translate(-50%, calc(-100% - 14px))' : 'translate(-50%, 14px)',
+            }}
+          >
+            <TipShell title={active.fullLabel}>
+              <TipRow label="Data" value={formatGbText(active.usage)} swatch={active.tone} />
+              <TipRow label="Connected" value={formatCompactMinutes(active.connectedMinutes)} />
+              <TipRow label="Sessions" value={active.sessionCount || '0'} />
+              {active.downMinutes > 0 && (
+                <TipRow
+                  label="Offline"
+                  value={formatCompactMinutes(active.downMinutes)}
+                  swatch="var(--color-down)"
+                />
               )}
-            </div>
-
-            {active && hover !== null && (
-              <div
-                className="absolute z-20 pointer-events-none"
-                style={{
-                  left: `${((hover + 0.5) / columns.length) * 100}%`,
-                  top: 0,
-                  transform: `translate(${
-                    hover / columns.length > 0.65 ? 'calc(-100% - 10px)' : '10px'
-                  }, 0)`,
-                }}
-              >
-                <TipShell title={active.fullLabel}>
-                  <TipRow label="Data" value={formatGbText(active.usage)} swatch={active.tone} />
-                  <TipRow label="Connected" value={formatCompactMinutes(active.connectedMinutes)} />
-                  <TipRow label="Sessions" value={active.sessionCount || '—'} />
-                  {active.downMinutes > 0 && (
-                    <TipRow
-                      label="Offline"
-                      value={formatCompactMinutes(active.downMinutes)}
-                      swatch="var(--color-down)"
-                    />
-                  )}
-                  {active.drops.length > 0 && (
-                    <TipRow
-                      label="Drop"
-                      value={active.drops
-                        .map(
-                          (d) =>
-                            `${minuteOfDayToClock(
-                              d.from.getHours() * 60 + d.from.getMinutes()
-                            )} · ${formatCompactMinutes(d.minutes)}`
-                        )
-                        .join(', ')}
-                      swatch="var(--color-down)"
-                    />
-                  )}
-                </TipShell>
-              </div>
-            )}
+              {active.drops.map((d) => (
+                <TipRow
+                  key={d.id}
+                  label={`Drop at ${minuteOfDayToClock(d.from.getHours() * 60 + d.from.getMinutes())}`}
+                  value={formatCompactMinutes(d.minutes)}
+                  swatch="var(--color-down)"
+                />
+              ))}
+            </TipShell>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 mt-4 pt-3 border-t border-[var(--color-line)]">
-          <p className="text-xs text-[var(--color-ink-2)]">
-            Busiest day{' '}
-            <span className="num text-[var(--color-ink)]">
-              {stats.peakDay ? `${stats.peakDay.label} · ${formatGbText(stats.peakDay.usage)}` : '—'}
-            </span>
-            <span className="mx-2 text-[var(--color-line-2)]">/</span>
-            Quietest{' '}
-            <span className="num text-[var(--color-ink)]">
-              {stats.quietDay
-                ? `${stats.quietDay.label} · ${formatGbText(stats.quietDay.usage)}`
-                : '—'}
-            </span>
-          </p>
-          <p className="flex items-center gap-1.5 text-xs text-[var(--color-ink-2)]">
-            <span className="w-3.5 h-3.5 bg-[var(--color-down)] rounded-[2px]" aria-hidden />
-            {stats.outageCount
-              ? `${stats.outageCount} service drop${stats.outageCount > 1 ? 's' : ''}, ${formatCompactMinutes(
-                  stats.downMinutes
-                )} offline`
-              : 'No service drops in this period'}
-          </p>
-        </div>
+        )}
       </div>
-      <span className="sr-only">
-        Peak daily volume in this period is {formatGbText(max)}.
-      </span>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 text-[13px] text-[var(--color-ink-3)] sm:grid-cols-3">
+        <p>
+          Busiest day{' '}
+          <span className="num text-[var(--color-ink)]">
+            {stats.peakDay ? `${stats.peakDay.label}, ${formatGbText(stats.peakDay.usage)}` : '-'}
+          </span>
+        </p>
+        <p>
+          Quietest day{' '}
+          <span className="num text-[var(--color-ink)]">
+            {stats.quietDay ? `${stats.quietDay.label}, ${formatGbText(stats.quietDay.usage)}` : '-'}
+          </span>
+        </p>
+        <p className="sm:text-right">
+          {stats.outageCount ? (
+            <>
+              <span className="text-[var(--color-down)]">
+                {stats.outageCount} service {stats.outageCount > 1 ? 'drops' : 'drop'}
+              </span>
+              , {formatCompactMinutes(stats.downMinutes)} offline
+            </>
+          ) : (
+            'No service drops in this period'
+          )}
+        </p>
+      </div>
+      <span className="sr-only">Peak daily volume in this period is {formatGbText(max)}.</span>
     </Panel>
   );
 }

@@ -1,12 +1,12 @@
-import { Monitor, Moon, Sun } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Desktop, Moon, Sun } from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 
-const OPTIONS: Array<{ key: Theme; Icon: LucideIcon; label: string }> = [
-  { key: 'light', Icon: Sun, label: 'Light' },
-  { key: 'dark', Icon: Moon, label: 'Dark' },
-  { key: 'system', Icon: Monitor, label: 'Match system' },
+const OPTIONS: Array<{ key: Theme; Glyph: Icon; label: string }> = [
+  { key: 'light', Glyph: Sun, label: 'Light' },
+  { key: 'dark', Glyph: Moon, label: 'Dark' },
+  { key: 'system', Glyph: Desktop, label: 'Match system' },
 ];
 
 export default function ThemeToggle() {
@@ -24,7 +24,7 @@ export default function ThemeToggle() {
           title={mode.label}
           className="!px-2"
         >
-          <mode.Icon className="w-3.5 h-3.5" strokeWidth={2} />
+          <mode.Glyph className="h-4 w-4" weight={theme === mode.key ? 'fill' : 'regular'} />
           <span className="sr-only">{mode.label}</span>
         </button>
       ))}

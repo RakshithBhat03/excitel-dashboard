@@ -15,8 +15,8 @@ interface AddressPoolProps {
 export default function AddressPool({ pool, sessionCount }: AddressPoolProps) {
   if (!pool.uniqueAddresses) {
     return (
-      <Panel className="min-h-[240px]">
-        <PanelHead label="Address pool" title="Where the line was placed" />
+      <Panel>
+        <PanelHead title="Address pool" />
         <Empty message="No addresses recorded for this period." />
       </Panel>
     );
@@ -27,53 +27,43 @@ export default function AddressPool({ pool, sessionCount }: AddressPoolProps) {
   return (
     <Panel>
       <PanelHead
-        label="Address pool"
-        title="Where the line was placed"
-        meta={`${pool.uniqueAddresses} addresses over ${sessionCount} sessions, drawn from ${pool.prefixes.join(', ')}`}
+        title="Address pool"
+        meta={`Drawn from ${pool.prefixes.join(', ')} over ${sessionCount} ${sessionCount === 1 ? 'session' : 'sessions'}.`}
       />
 
-      <div className="flex-1 p-4 sm:p-5">
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-line)]">
-          <div className="bg-[var(--color-panel)] px-3 py-2.5">
-            <dt className="label">Distinct addresses</dt>
-            <dd className="num mt-1 text-[17px] font-medium text-[var(--color-ink)]">
-              {pool.uniqueAddresses}
-            </dd>
-          </div>
-          <div className="bg-[var(--color-panel)] px-3 py-2.5">
-            <dt className="label">/24 blocks used</dt>
-            <dd className="num mt-1 text-[17px] font-medium text-[var(--color-ink)]">
-              {pool.subnetCount}
-            </dd>
-          </div>
-        </dl>
+      <dl className="grid grid-cols-2 gap-6">
+        <div>
+          <dt className="text-[13px] text-[var(--color-ink-3)]">Distinct addresses</dt>
+          <dd className="figure mt-2 text-[44px] text-[var(--color-ink)]">{pool.uniqueAddresses}</dd>
+        </div>
+        <div>
+          <dt className="text-[13px] text-[var(--color-ink-3)]">/24 blocks</dt>
+          <dd className="figure mt-2 text-[44px] text-[var(--color-ink)]">{pool.subnetCount}</dd>
+        </div>
+      </dl>
 
-        <h3 className="label mt-4 mb-2.5">Blocks by session count</h3>
-        <ul className="space-y-2">
-          {pool.subnets.slice(0, 6).map((s) => (
-            <li key={s.subnet} className="flex items-center gap-3">
-              <span className="num w-[104px] shrink-0 text-[11px] text-[var(--color-ink)]">
-                {s.subnet}
+      <ul className="mt-6 space-y-3">
+        {pool.subnets.slice(0, 5).map((s) => (
+          <li key={s.subnet}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="num truncate text-[12.5px] text-[var(--color-ink)]">{s.subnet}</span>
+              <span className="num shrink-0 text-[12px] text-[var(--color-ink-3)]">
+                {s.count} {s.count === 1 ? 'session' : 'sessions'}, {formatGbText(s.gb, 0)}
               </span>
-              <span className="relative h-4 flex-1 overflow-hidden rounded-[3px] bg-[var(--color-well)]">
-                <span
-                  className="absolute inset-y-0 left-0 rounded-[3px] bg-[var(--color-s1)]"
-                  style={{ width: `${Math.max(2, (s.count / max) * 100)}%` }}
-                />
-              </span>
-              <span className="num w-6 shrink-0 text-right text-[11px] text-[var(--color-ink)]">
-                {s.count}
-              </span>
-              <span className="num w-16 shrink-0 text-right text-[11px] text-[var(--color-ink-2)]">
-                {formatGbText(s.gb, 0)}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {pool.subnets.length > 6 && (
-          <p className="label mt-2.5">{pool.subnets.length - 6} more blocks</p>
-        )}
-      </div>
+            </div>
+            <span
+              className="mt-1.5 block h-[3px] rounded-[2px] bg-[var(--color-s1)]"
+              style={{ width: `${Math.max(2, (s.count / max) * 100)}%` }}
+              aria-hidden
+            />
+          </li>
+        ))}
+      </ul>
+      {pool.subnets.length > 5 && (
+        <p className="mt-3 text-[12px] text-[var(--color-ink-3)]">
+          {pool.subnets.length - 5} more blocks
+        </p>
+      )}
     </Panel>
   );
 }
