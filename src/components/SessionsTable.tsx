@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, MagnifyingGlass } from '@phosphor-icons/react';
 import { cn } from '../lib/utils';
 import type { DailySummary, NormalizedSession } from '../types/analytics';
 import {
@@ -55,9 +55,9 @@ const DAY_COLUMNS: TableColumn[] = [
 ];
 
 const Sort = memo(function Sort({ on, dir }: { on: boolean; dir: SortDirection }): ReactNode {
-  if (!on) return <span className="ml-1 text-[var(--color-line-2)]">↕</span>;
-  const Icon = dir === 'asc' ? ArrowUp : ArrowDown;
-  return <Icon className="ml-1 inline w-3 h-3 text-[var(--color-s1)]" />;
+  if (!on) return <ArrowDown className="ml-1 inline h-3 w-3 opacity-0 group-hover:opacity-40" weight="bold" />;
+  const Glyph = dir === 'asc' ? ArrowUp : ArrowDown;
+  return <Glyph className="ml-1 inline h-3 w-3 text-[var(--color-s1)]" weight="bold" />;
 });
 Sort.displayName = 'Sort';
 
@@ -71,9 +71,9 @@ function Bar({
   color?: string | undefined;
 }): ReactNode {
   return (
-    <span className="block h-1.5 w-full min-w-[52px] overflow-hidden rounded-full bg-[var(--color-well)]">
+    <span className="block h-1.5 w-full min-w-[52px]">
       <span
-        className="block h-full rounded-full"
+        className="block h-full rounded-[2px]"
         style={{ width: `${Math.max(2, (value / (max || 1)) * 100)}%`, background: color }}
       />
     </span>
@@ -169,24 +169,23 @@ export default function SessionsTable({ rows, days }: SessionsTableProps) {
   const activeSort = isDays ? daySort : sort;
 
   return (
-    <Panel className="overflow-hidden">
+    <Panel>
       <PanelHead
-        label="Records"
         title={isDays ? 'Daily totals' : 'Session log'}
         meta={
           isDays
-            ? `${dayRows.length} days with activity`
-            : `${sessionRows.length} of ${rows.length} sessions`
+            ? `${dayRows.length} days with activity. Times are IST.`
+            : `${sessionRows.length} of ${rows.length} sessions. Times are IST.`
         }
       >
         {!isDays && (
-          <label className="hidden items-center gap-1.5 rounded-md border border-[var(--color-line)] bg-[var(--color-inset)] px-2.5 h-8 sm:flex">
-            <Search className="w-3.5 h-3.5 text-[var(--color-ink-3)]" />
+          <label className="hidden h-9 items-center gap-2 rounded-[10px] border border-[var(--color-line-2)] px-3 transition-colors focus-within:border-[var(--color-s1)] sm:flex">
+            <MagnifyingGlass className="h-4 w-4 text-[var(--color-ink-3)]" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter address or cause"
-              className="w-44 bg-transparent text-[12px] outline-none placeholder:text-[var(--color-ink-3)]"
+              className="w-48 bg-transparent text-[13px] text-[var(--color-ink)] outline-none placeholder:text-[var(--color-ink-3)]"
               aria-label="Filter sessions"
             />
           </label>
@@ -213,16 +212,16 @@ export default function SessionsTable({ rows, days }: SessionsTableProps) {
           }
         />
       ) : (
-        <div className="max-h-[520px] overflow-auto">
+        <div className="max-h-[560px] overflow-auto rounded-[10px] border border-[var(--color-line)]">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-10 bg-[var(--color-panel)]">
+            <thead className="sticky top-0 z-10 bg-[var(--color-inset)]">
               <tr className="border-b border-[var(--color-line)]">
                 {columns.map((c) => (
                   <th
                     key={c.key}
                     scope="col"
                     className={cn(
-                      'label whitespace-nowrap px-3 py-2 font-medium first:pl-4 last:pr-4 sm:first:pl-5 sm:last:pr-5',
+                      'tick group whitespace-nowrap px-3 py-3 font-medium first:pl-4 last:pr-4 sm:first:pl-5 sm:last:pr-5',
                       c.align === 'right' ? 'text-right' : 'text-left',
                       c.sortable && 'cursor-pointer select-none hover:!text-[var(--color-ink)]'
                     )}
@@ -252,7 +251,7 @@ export default function SessionsTable({ rows, days }: SessionsTableProps) {
                 ? dayRows.map((d) => (
                     <tr
                       key={d.dateKey}
-                      className="border-b border-[var(--color-line)] last:border-0 transition-colors hover:bg-[var(--color-inset)]"
+                      className="border-b border-[var(--color-line)] last:border-0 transition-colors hover:bg-[color-mix(in_oklab,var(--color-s1)_6%,transparent)]"
                     >
                       <td className="whitespace-nowrap px-3 py-2.5 pl-4 text-[13px] text-[var(--color-ink)] sm:pl-5">
                         {d.fullLabel}
@@ -274,7 +273,7 @@ export default function SessionsTable({ rows, days }: SessionsTableProps) {
                 : sessionRows.map((s) => (
                     <tr
                       key={s.sessionId}
-                      className="border-b border-[var(--color-line)] last:border-0 transition-colors hover:bg-[var(--color-inset)]"
+                      className="border-b border-[var(--color-line)] last:border-0 transition-colors hover:bg-[color-mix(in_oklab,var(--color-s1)_6%,transparent)]"
                     >
                       <td className="num whitespace-nowrap px-3 py-2.5 pl-4 text-[12px] text-[var(--color-ink)] sm:pl-5">
                         {formatStamp(s.start)}
@@ -292,11 +291,11 @@ export default function SessionsTable({ rows, days }: SessionsTableProps) {
                         <Bar value={s.gb} max={maxSessionGb} />
                       </td>
                       <td className="num whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--color-ink-2)]">
-                        {s.ip || '—'}
+                        {s.ip || '-'}
                       </td>
                       <td className="px-3 py-2.5 pr-4 text-right sm:pr-5">
                         <span
-                          className={cn('chip', FAULTS.has(s.cause) ? 'chip-down' : 'chip-up')}
+                          className={cn('chip', FAULTS.has(s.cause) && 'chip-down')}
                         >
                           {s.cause}
                         </span>
@@ -308,11 +307,13 @@ export default function SessionsTable({ rows, days }: SessionsTableProps) {
         </div>
       )}
 
-      <p className="label border-t border-[var(--color-line)] px-4 py-2.5 sm:px-5">
-        {isDays
-          ? `Totalling ${formatGbText(dayRows.reduce((a, d) => a + d.usage, 0))}`
-          : `Totalling ${formatGbText(sessionRows.reduce((a, s) => a + s.gb, 0))}`}{' '}
-        · times shown in IST
+      <p className="mt-3 text-[13px] text-[var(--color-ink-3)]">
+        Total{' '}
+        <span className="num text-[var(--color-ink)]">
+          {isDays
+            ? formatGbText(dayRows.reduce((a, d) => a + d.usage, 0))
+            : formatGbText(sessionRows.reduce((a, s) => a + s.gb, 0))}
+        </span>
       </p>
     </Panel>
   );

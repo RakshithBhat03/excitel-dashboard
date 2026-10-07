@@ -1,92 +1,94 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=Martian+Mono:wdth,wght@75..112.5,200..700&display=swap');
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════
-   LINE MONITOR — design tokens
+   SIGNAL - design tokens
 
-   A precision-instrument readout for a single fibre line.
-   Cool slate surfaces, hairline rules, one teal signal colour.
+   An editorial instrument for one fibre line. Graphite surfaces, open
+   sections divided by hairlines instead of boxed cards, one cobalt
+   signal colour, and numerals set large enough to read across a room.
 
-   The chart palette is validated (dataviz six-checks, all-pairs,
-   both modes): slots teal → violet → amber. Red and green are
-   reserved status colours and always ship with a label, never
-   as "series 4".
+   Shape rule: controls and popovers are 10px, data marks are 2-3px,
+   nothing else is rounded.
+
+   The chart palette is validated (dataviz six-checks, both modes,
+   against --color-panel): s1 cobalt -> s2 orange -> s3 violet. The
+   sequential ramp is cobalt, light -> dark in light mode and dark ->
+   light in dark mode. Red and green are reserved status colours and
+   always ship with a text label, never colour alone.
    ═══════════════════════════════════════════════════════════════════ */
 
 @theme {
-  /* Surfaces — cool slate, never cream */
-  --color-canvas:   #e8ecef;
-  --color-panel:    #fbfcfd;
-  --color-inset:    #f1f4f6;
-  --color-well:     #e3e8ec;
+  /* Surfaces - cool neutral graphite */
+  --color-canvas:   #f1f2f4;
+  --color-panel:    #fbfbfc;
+  --color-inset:    #e9ebee;
+  --color-well:     #e2e5e9;
 
   /* Ink */
-  --color-ink:      #0a1418;
-  --color-ink-2:    #46565e;
-  --color-ink-3:    #78888f;
+  --color-ink:      #0d0f12;
+  --color-ink-2:    #4a5059;
+  --color-ink-3:    #6c727b;
 
   /* Rules */
-  --color-line:     #d5dcE1;
-  --color-line-2:   #bcc6cd;
+  --color-line:     #dde0e5;
+  --color-line-2:   #c4c9d0;
 
-  /* Chart series — validated categorical, fixed order */
-  --color-s1:       #00918d;   /* teal    — volume, the primary measure */
-  --color-s2:       #5b4bd6;   /* violet  — secondary series */
-  --color-s3:       #a06400;   /* amber   — tertiary series */
+  /* Chart series - validated categorical, fixed order */
+  --color-s1:       #2f5fe0;   /* cobalt - volume, the primary measure; also the UI accent */
+  --color-s2:       #d9620f;   /* orange - "the top one": peak day, heaviest weekday */
+  --color-s3:       #8a5cf0;   /* violet - tertiary series */
 
-  /* Status — reserved, always with a label */
-  --color-up:       #0e7c4a;
-  --color-warn:     #a06400;
-  --color-down:     #c0362f;
+  /* Status - reserved, always with a label */
+  --color-up:       #1a8a50;
+  --color-warn:     #a86200;
+  --color-down:     #d93a3a;
 
-  /* Sequential teal ramp, light → dark (magnitude encoding) */
-  --color-ramp-0:   #e4eeee;
-  --color-ramp-1:   #c2e2e0;
-  --color-ramp-2:   #92d0cd;
-  --color-ramp-3:   #4fb6b2;
-  --color-ramp-4:   #00918d;
-  --color-ramp-5:   #006f6c;
+  /* Sequential cobalt ramp (magnitude). 0 is the empty well. */
+  --color-ramp-0:   #e2e5e9;
+  --color-ramp-1:   #93aaf7;
+  --color-ramp-2:   #6a8cf2;
+  --color-ramp-3:   #3f6be6;
+  --color-ramp-4:   #2a52c9;
+  --color-ramp-5:   #1b3794;
 
-  /* Type */
-  --font-sans:    'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Martian Mono', ui-monospace, 'SF Mono', monospace;
-  --font-mono:    'Martian Mono', ui-monospace, 'SF Mono', monospace;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', monospace;
 
-  --shadow-panel: 0 1px 2px rgb(10 20 24 / 0.05);
-  --shadow-pop:   0 8px 28px -8px rgb(10 20 24 / 0.22), 0 1px 2px rgb(10 20 24 / 0.08);
+  --shadow-pop: 0 18px 48px -16px rgb(13 20 40 / 0.28), 0 2px 6px rgb(13 20 40 / 0.06);
+  --glow: rgb(47 95 224 / 0.10);
 }
 
 .dark {
-  --color-canvas:   #080d10;
-  --color-panel:    #111a1f;
-  --color-inset:    #182429;
-  --color-well:     #1e2c32;
+  --color-canvas:   #0b0c0e;
+  --color-panel:    #121417;
+  --color-inset:    #181b1f;
+  --color-well:     #1c2025;
 
-  --color-ink:      #e6f0f2;
-  --color-ink-2:    #9cadb5;
-  --color-ink-3:    #74878f;
+  --color-ink:      #eceef1;
+  --color-ink-2:    #a3a9b2;
+  --color-ink-3:    #7c838d;
 
-  --color-line:     #223037;
-  --color-line-2:   #35484f;
+  --color-line:     #20242a;
+  --color-line-2:   #2f353d;
 
-  --color-s1:       #0fa69f;
-  --color-s2:       #8878e6;
-  --color-s3:       #bc8226;
+  --color-s1:       #5b86ff;
+  --color-s2:       #d96d22;
+  --color-s3:       #9475f5;
 
-  --color-up:       #32b473;
-  --color-warn:     #bc8226;
-  --color-down:     #e2605a;
+  --color-up:       #3cc47f;
+  --color-warn:     #e0a23a;
+  --color-down:     #f2555a;
 
-  /* Dark ramp: stepped for the dark surface, not an inverted flip */
-  --color-ramp-0:   #1e2c32;
-  --color-ramp-1:   #14453f;
-  --color-ramp-2:   #0c6259;
-  --color-ramp-3:   #068177;
-  --color-ramp-4:   #12a49c;
-  --color-ramp-5:   #56cec4;
+  /* Dark ramp: stepped for the dark surface, low magnitude stays dim */
+  --color-ramp-0:   #1c2025;
+  --color-ramp-1:   #25439c;
+  --color-ramp-2:   #2d53c0;
+  --color-ramp-3:   #3c66e3;
+  --color-ramp-4:   #5b86ff;
+  --color-ramp-5:   #8eabff;
 
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-pop:   0 12px 32px -8px rgb(0 0 0 / 0.7), 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-pop: 0 24px 56px -16px rgb(0 0 0 / 0.75), 0 2px 6px rgb(0 0 0 / 0.4);
+  --glow: rgb(91 134 255 / 0.09);
 }
 
 /* ── Globals ─────────────────────────────────────────────────────── */
@@ -103,8 +105,21 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'ss01', 'cv01';
+  font-feature-settings: 'ss01';
 }
+
+/* A single soft cobalt wash behind the hero. Fixed, non-interactive,
+   so it never repaints on scroll. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 620px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(60% 100% at 78% 0%, var(--glow), transparent 70%);
+}
+#root { position: relative; z-index: 1; background: transparent; }
 
 ::selection { background: var(--color-s1); color: #fff; }
 
@@ -117,59 +132,58 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-3); }
 
+/* Tailwind 4's preflight resets buttons to the default arrow. Anything that
+   acts on click gets the hand back; in the base layer so utilities override it. */
+@layer base {
+  button:not(:disabled), [role="button"], [role="option"], a[href], select, summary,
+  label:has(input[type="checkbox"], input[type="radio"]) {
+    cursor: pointer;
+  }
+}
+
 :where(button, a, input, select, [tabindex]):focus-visible {
   outline: 2px solid var(--color-s1);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 /* ── Type roles ──────────────────────────────────────────────────── */
 
-/* Numerals and instrument labels. Martian Mono at a condensed width
-   reads like a meter face; tabular figures keep columns from jittering. */
-.readout {
-  font-family: var(--font-display);
-  font-variation-settings: 'wdth' 78;
-  font-feature-settings: 'tnum', 'zero';
-  letter-spacing: -0.02em;
+/* Display numerals: Geist, tight, tabular so values don't jitter
+   while they count. */
+.figure {
+  font-family: var(--font-sans);
+  font-feature-settings: 'tnum', 'ss01';
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 0.9;
 }
-.readout-wide { font-variation-settings: 'wdth' 100; }
 
+/* Inline numbers, timestamps, addresses */
 .num {
-  font-family: var(--font-display);
-  font-variation-settings: 'wdth' 85;
+  font-family: var(--font-mono);
   font-feature-settings: 'tnum', 'zero';
   letter-spacing: -0.01em;
 }
 
-/* Small caps label — the tick-mark text of the instrument */
-.label {
-  font-family: var(--font-display);
-  font-variation-settings: 'wdth' 85;
+/* Axis ticks and table headers only - not a section eyebrow. */
+.tick {
+  font-family: var(--font-mono);
   font-size: 10.5px;
-  line-height: 1.35;
+  line-height: 1.3;
   font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
   color: var(--color-ink-3);
 }
 
-/* ── Panel primitive ─────────────────────────────────────────────── */
+/* ── Section primitive ───────────────────────────────────────────── */
 
-.panel {
-  background: var(--color-panel);
-  border: 1px solid var(--color-line);
-  border-radius: 10px;
-  box-shadow: var(--shadow-panel);
-}
-
-.panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--color-line);
+/* Sections are open: a hairline on top, generous air, no box. */
+.sect {
+  position: relative;
+  border-top: 1px solid var(--color-line);
+  padding-top: 20px;
 }
 
 /* ── Controls ────────────────────────────────────────────────────── */
@@ -177,24 +191,26 @@ body {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: 6px;
-  border: 1px solid var(--color-line);
-  background: var(--color-panel);
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-line-2);
+  background: transparent;
   color: var(--color-ink);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
-  transition: background-color .14s ease, border-color .14s ease, color .14s ease;
+  white-space: nowrap;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .12s ease;
 }
-.btn:hover:not(:disabled) { background: var(--color-inset); border-color: var(--color-line-2); }
+.btn:hover:not(:disabled) { background: var(--color-inset); }
+.btn:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
 .btn:disabled { opacity: .55; cursor: default; }
 
 .btn-primary {
   background: var(--color-ink);
   border-color: var(--color-ink);
-  color: var(--color-panel);
+  color: var(--color-canvas);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--color-s1);
@@ -202,65 +218,53 @@ body {
   color: #fff;
 }
 
-/* Segmented switch — used for chart views and theme */
+/* Segmented switch - chart views and theme */
 .seg {
   display: inline-flex;
-  padding: 2px;
+  padding: 3px;
   gap: 2px;
-  border-radius: 7px;
-  border: 1px solid var(--color-line);
+  border-radius: 10px;
   background: var(--color-inset);
 }
 .seg > button {
-  height: 24px;
-  padding: 0 9px;
-  border-radius: 5px;
-  font-family: var(--font-display);
-  font-variation-settings: 'wdth' 88;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--color-ink-3);
-  transition: background-color .14s ease, color .14s ease;
+  transition: background-color .18s ease, color .18s ease;
 }
 .seg > button:hover { color: var(--color-ink); }
 .seg > button[data-on="true"] {
   background: var(--color-panel);
   color: var(--color-ink);
-  box-shadow: var(--shadow-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), inset 0 0 0 1px var(--color-line);
 }
 
-/* ── Status chip — colour never travels alone ────────────────────── */
+/* ── Status chip - colour never travels alone ────────────────────── */
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 20px;
-  padding: 0 7px 0 6px;
-  border-radius: 4px;
-  border: 1px solid var(--color-line);
-  background: var(--color-inset);
-  font-family: var(--font-display);
-  font-variation-settings: 'wdth' 88;
-  font-size: 9.5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--color-ink-2);
+  background: var(--color-inset);
   white-space: nowrap;
 }
-.chip::before {
-  content: '';
-  width: 5px; height: 5px;
-  border-radius: 1px;
-  background: currentColor;
+.chip-down {
+  color: var(--color-down);
+  background: color-mix(in oklab, var(--color-down) 12%, transparent);
 }
-.chip-up   { color: var(--color-up);   border-color: color-mix(in oklab, var(--color-up) 35%, transparent);   background: color-mix(in oklab, var(--color-up) 10%, transparent); }
-.chip-warn { color: var(--color-warn); border-color: color-mix(in oklab, var(--color-warn) 35%, transparent); background: color-mix(in oklab, var(--color-warn) 10%, transparent); }
-.chip-down { color: var(--color-down); border-color: color-mix(in oklab, var(--color-down) 35%, transparent); background: color-mix(in oklab, var(--color-down) 10%, transparent); }
 
-/* ── Link LED — real state, driven by the latest session ─────────── */
+/* ── Link LED - real state, driven by the latest session ─────────── */
 
 .led {
   position: relative;
@@ -280,17 +284,24 @@ body {
 }
 @keyframes led-breathe {
   0%, 100% { transform: scale(1);   opacity: .35; }
-  50%      { transform: scale(1.5); opacity: 0; }
+  50%      { transform: scale(1.6); opacity: 0; }
 }
 
 /* ── Motion ──────────────────────────────────────────────────────── */
 
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
-.enter { animation: fade-up .34s cubic-bezier(.22,.68,.28,1) both; }
+.enter { animation: fade-up .5s cubic-bezier(.16,1,.3,1) both; }
 
+/* Timeline rows fill left to right, the way the day happened. */
+@keyframes strand-in {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Bars grow up from their baseline. */
 @keyframes ribbon-rise {
   from { transform: scaleY(0); }
   to   { transform: scaleY(1); }
@@ -303,13 +314,14 @@ body {
 .skeleton {
   position: relative;
   overflow: hidden;
+  border-radius: 10px;
   background: var(--color-inset);
 }
 .skeleton::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-line) 70%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-line-2) 45%, transparent), transparent);
   animation: sweep 1.4s ease-in-out infinite;
 }
 
@@ -324,10 +336,8 @@ body {
 /* ── Recharts overrides ──────────────────────────────────────────── */
 
 .recharts-text {
-  font-family: var(--font-display);
-  font-variation-settings: 'wdth' 88;
-  font-size: 9.5px;
-  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
 }
 .recharts-surface { overflow: visible; }
 .recharts-cartesian-axis-line, .recharts-cartesian-axis-tick-line { stroke: var(--color-line); }

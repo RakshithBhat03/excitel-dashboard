@@ -1,9 +1,10 @@
-import { useId } from 'react';
+import { useId, useLayoutEffect, useRef } from 'react';
 import type { HTMLAttributes, ReactNode } from 'react';
+import { animate, useReducedMotion } from 'motion/react';
 import { cn } from '../lib/utils';
 
 /* Shared shell pieces. Everything on the page is built from these so the
-   panels, headings and tooltips stay identical across charts. */
+   sections, headings and tooltips stay identical across charts. */
 
 export function Panel({
   className,
@@ -11,30 +12,33 @@ export function Panel({
   ...rest
 }: HTMLAttributes<HTMLElement>): ReactNode {
   return (
-    <section className={cn('panel flex flex-col', className)} {...rest}>
+    <section className={cn('sect flex flex-col', className)} {...rest}>
       {children}
     </section>
   );
 }
 
 export interface PanelHeadProps {
-  label?: string | undefined;
   title: string;
-  meta?: string | undefined;
+  meta?: ReactNode | undefined;
   children?: ReactNode | undefined;
 }
 
-export function PanelHead({ label, title, meta, children }: PanelHeadProps): ReactNode {
+/** Title, one line of context, and any controls on the right. No eyebrow. */
+export function PanelHead({ title, meta, children }: PanelHeadProps): ReactNode {
   return (
-    <header className="panel-head">
+    <header className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
-        {label && <p className="label">{label}</p>}
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--color-ink)] mt-0.5">
+        <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-[var(--color-ink)]">
           {title}
         </h2>
-        {meta && <p className="text-xs text-[var(--color-ink-2)] mt-1">{meta}</p>}
+        {meta && (
+          <p className="mt-1 max-w-[62ch] text-[13px] leading-relaxed text-[var(--color-ink-3)]">
+            {meta}
+          </p>
+        )}
       </div>
-      {children && <div className="flex items-center gap-2 shrink-0">{children}</div>}
+      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
     </header>
   );
 }
@@ -42,9 +46,11 @@ export function PanelHead({ label, title, meta, children }: PanelHeadProps): Rea
 /** One tooltip shell for every chart on the page. */
 export function TipShell({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <div className="rounded-lg border border-[var(--color-line-2)] bg-[var(--color-panel)] shadow-[var(--shadow-pop)] min-w-[168px] overflow-hidden">
-      <p className="label px-2.5 pt-2 pb-1.5 !text-[var(--color-ink-2)]">{title}</p>
-      <div className="px-2.5 pb-2 space-y-1">{children}</div>
+    <div className="min-w-[184px] overflow-hidden rounded-[10px] border border-[var(--color-line-2)] bg-[var(--color-panel)] shadow-[var(--shadow-pop)]">
+      <p className="border-b border-[var(--color-line)] px-3 py-2 text-[12px] font-semibold text-[var(--color-ink)]">
+        {title}
+      </p>
+      <div className="space-y-1.5 px-3 py-2.5">{children}</div>
     </div>
   );
 }
@@ -59,32 +65,43 @@ export function TipRow({
   swatch?: string | undefined;
 }): ReactNode {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="flex items-center gap-1.5 text-[11px] text-[var(--color-ink-2)]">
+    <div className="flex items-center justify-between gap-5">
+      <span className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]">
         {swatch && (
           <span
-            className="w-2 h-2 rounded-[2px] shrink-0"
+            className="h-2 w-2 shrink-0 rounded-[2px]"
             style={{ background: swatch }}
             aria-hidden
           />
         )}
         {label}
       </span>
-      <span className="num text-[11px] font-medium text-[var(--color-ink)]">{value}</span>
+      <span className="num text-[12px] font-medium text-[var(--color-ink)]">{value}</span>
     </div>
   );
 }
 
 export function Empty({
   message,
+  detail,
+  icon,
   className,
 }: {
   message: string;
+  detail?: string | undefined;
+  icon?: ReactNode | undefined;
   className?: string | undefined;
 }): ReactNode {
   return (
-    <div className={cn('flex flex-1 items-center justify-center p-8 text-center', className)}>
-      <p className="text-[13px] text-[var(--color-ink-2)]">{message}</p>
+    <div
+      className={cn(
+        'flex flex-1 flex-col items-start justify-center gap-2 rounded-[10px] bg-[var(--color-inset)] px-6 py-8',
+        className
+      )}
+    >
+      {icon && <span className="text-[var(--color-ink-3)]">{icon}</span>}
+      <p className="text-[14px] font-medium text-[var(--color-ink)]">{message}</p>
+      {detail && <p className="max-w-[44ch] text-[13px] text-[var(--color-ink-3)]">{detail}</p>}
     </div>
   );
 }
@@ -102,21 +119,72 @@ export function LegendItem({
   return (
     <span className="inline-flex items-center gap-1.5">
       <span
-        className="w-2.5 h-2.5 rounded-[2px] shrink-0"
+        className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
         style={{ background: color }}
         aria-hidden
       />
-      <span className="text-[11px] text-[var(--color-ink-2)]">{name}</span>
-      {value && <span className="num text-[11px] text-[var(--color-ink)]">{value}</span>}
+      <span className="text-[12px] text-[var(--color-ink-2)]">{name}</span>
+      {value && <span className="num text-[12px] text-[var(--color-ink)]">{value}</span>}
     </span>
+  );
+}
+
+/**
+ * A number that counts to its value. Runs on a motion value and writes the
+ * text node directly, so React never re-renders per frame. Counting from the
+ * previous value on a period switch shows what changed; reduced motion jumps.
+ */
+export function Ticker({
+  value,
+  decimals = 0,
+  pad = 0,
+  className,
+}: {
+  value: number;
+  decimals?: number | undefined;
+  /** Minimum integer digits, zero-filled: the "05" in 99.05. */
+  pad?: number | undefined;
+  className?: string | undefined;
+}): ReactNode {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const from = useRef(0);
+  const reduce = useReducedMotion();
+  const show = (n: number): string => n.toFixed(decimals).padStart(pad, '0');
+  const text = show(value);
+
+  // The text node belongs to this effect alone (React renders no children),
+  // and it runs before paint, so the final value never flashes first.
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    if (reduce) {
+      node.textContent = text;
+      from.current = value;
+      return undefined;
+    }
+    const controls = animate(from.current, value, {
+      duration: 1.1,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (latest) => {
+        node.textContent = show(latest);
+      },
+    });
+    from.current = value;
+    return () => controls.stop();
+    // show only depends on decimals and pad, both listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, decimals, pad, reduce, text]);
+
+  return (
+    <span ref={ref} className={className} role="img" aria-label={text} />
   );
 }
 
 export function Sparkline({
   data,
   color = 'var(--color-s1)',
-  width = 76,
-  height = 22,
+  width = 88,
+  height = 26,
 }: {
   data?: number[] | undefined;
   color?: string | undefined;
@@ -152,7 +220,7 @@ export function Sparkline({
     >
       <defs>
         <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
@@ -161,11 +229,11 @@ export function Sparkline({
         d={line}
         fill="none"
         stroke={color}
-        strokeWidth="1.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx={lastX} cy={lastY} r="2" fill={color} />
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} stroke="var(--color-canvas)" strokeWidth="1.5" />
     </svg>
   );
 }

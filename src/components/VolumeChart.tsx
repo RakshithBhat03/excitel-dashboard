@@ -6,6 +6,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -43,7 +44,7 @@ function DailyTip({ active, payload }: ChartTooltipProps) {
     <TipShell title={d.fullLabel}>
       <TipRow label="Data" value={formatGbText(d.usage)} swatch="var(--color-s1)" />
       <TipRow label="Online" value={formatCompactMinutes(d.connectedMinutes)} />
-      <TipRow label="Sessions" value={d.sessionCount || '—'} />
+      <TipRow label="Sessions" value={d.sessionCount || '0'} />
     </TipShell>
   );
 }
@@ -80,7 +81,7 @@ export default function VolumeChart({ days, stats }: VolumeChartProps) {
   if (!days.length) {
     return (
       <Panel className="min-h-[360px]">
-        <PanelHead label="Data volume" title="How much moved, day by day" />
+        <PanelHead title="How much moved, day by day" />
         <Empty message="No usage recorded for this period yet." />
       </Panel>
     );
@@ -92,11 +93,10 @@ export default function VolumeChart({ days, stats }: VolumeChartProps) {
   return (
     <Panel>
       <PanelHead
-        label="Data volume"
         title="How much moved, day by day"
         meta={
           view === 'daily'
-            ? `Average ${formatGbText(avg)} a day · median ${formatGbText(stats.medianDailyGb)}`
+            ? `Average ${formatGbText(avg)} a day, median ${formatGbText(stats.medianDailyGb)}. The busiest day is marked in orange.`
             : `${formatGbText(stats.totalGb)} across ${stats.dayCount} active days`
         }
       >
@@ -115,18 +115,17 @@ export default function VolumeChart({ days, stats }: VolumeChartProps) {
         </div>
       </PanelHead>
 
-      <div className="flex-1 p-4 pl-1 sm:pl-2">
-        <div className="h-[268px]">
+      <div className="-ml-2 flex-1">
+        <div className="h-[300px]">
           <ResponsiveContainer
             width="100%"
             height="100%"
-            initialDimension={{ width: 640, height: 268 }}
+            initialDimension={{ width: 640, height: 300 }}
           >
             {view === 'daily' ? (
-              <BarChart data={data} margin={{ top: 12, right: 14, left: 4, bottom: 0 }}>
+              <BarChart data={data} margin={{ top: 26, right: 44, left: 0, bottom: 0 }}>
                 <CartesianGrid
                   stroke="var(--color-line)"
-                  strokeDasharray="2 4"
                   vertical={false}
                 />
                 <XAxis
@@ -148,45 +147,65 @@ export default function VolumeChart({ days, stats }: VolumeChartProps) {
                     position: 'top',
                     offset: 12,
                     fill: 'var(--color-ink-3)',
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                   }}
                 />
                 <Tooltip
                   content={<DailyTip />}
-                  cursor={{ fill: 'var(--color-inset)' }}
+                  cursor={{ fill: 'var(--color-inset)', radius: 4 }}
                 />
                 <ReferenceLine
                   y={avg}
-                  stroke="var(--color-ink-3)"
-                  strokeDasharray="4 3"
+                  stroke="var(--color-ink-2)"
+                  strokeDasharray="3 3"
                   strokeWidth={1}
                   label={{
                     value: `avg ${avg.toFixed(0)}`,
                     position: 'right',
                     fill: 'var(--color-ink-3)',
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                   }}
                 />
-                <Bar dataKey="usage" radius={[4, 4, 0, 0]} maxBarSize={26}>
+                <Bar dataKey="usage" radius={[4, 4, 0, 0]} maxBarSize={30} animationDuration={700}>
                   {data.map((d) => (
                     <Cell
                       key={d.dateKey}
                       fill={d.usage === peak ? 'var(--color-s2)' : 'var(--color-s1)'}
                     />
                   ))}
+                  <LabelList
+                    dataKey="usage"
+                    position="top"
+                    offset={8}
+                    content={(props) => {
+                      const { x, y, width, value } = props;
+                      if (Number(value) !== peak || !peak) return null;
+                      return (
+                        <text
+                          x={Number(x) + Number(width) / 2}
+                          y={Number(y) - 8}
+                          textAnchor="middle"
+                          className="recharts-text"
+                          fill="var(--color-ink)"
+                          fontWeight={600}
+                        >
+                          {`Peak ${formatGbText(peak, 1)}`}
+                        </text>
+                      );
+                    }}
+                  />
                 </Bar>
               </BarChart>
             ) : (
-              <AreaChart data={data} margin={{ top: 12, right: 14, left: 4, bottom: 0 }}>
+              <AreaChart data={data} margin={{ top: 26, right: 44, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="cumulative-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-s1)" stopOpacity="0.26" />
+                    <stop offset="0%" stopColor="var(--color-s1)" stopOpacity="0.32" />
                     <stop offset="100%" stopColor="var(--color-s1)" stopOpacity="0.02" />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
                   stroke="var(--color-line)"
-                  strokeDasharray="2 4"
                   vertical={false}
                 />
                 <XAxis
@@ -208,7 +227,7 @@ export default function VolumeChart({ days, stats }: VolumeChartProps) {
                     position: 'top',
                     offset: 12,
                     fill: 'var(--color-ink-3)',
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                   }}
                 />
                 <Tooltip

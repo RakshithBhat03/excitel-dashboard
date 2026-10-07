@@ -7,7 +7,7 @@
       stored === 'dark' ||
       (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.add(dark ? 'dark' : 'light');
-    document.documentElement.style.backgroundColor = dark ? '#080d10' : '#e8ecef';
+    document.documentElement.style.backgroundColor = dark ? '#0b0c0e' : '#f1f2f4';
   } catch {
     // No storage available — the app applies the theme on mount.
   }
